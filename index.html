@@ -2,115 +2,239 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <!-- ทำให้แสดงผลดีทั้งบนมือถือและคอมพิวเตอร์ -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hero Farm</title>
 
-  <!-- ฟอนต์จาก Google Fonts: Baloo 2 สำหรับหัวข้อ, Nunito สำหรับตัวหนังสือทั่วไป -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
 
+  <!-- style.css = ของเดิมทั้งหมด ไม่ได้แก้อะไรเลย -->
   <link rel="stylesheet" href="style.css" />
+  <!-- phase1.css = ส่วนที่เพิ่มใหม่ใน Phase 1 เท่านั้น -->
+  <link rel="stylesheet" href="css/phase1.css" />
 </head>
 <body>
 
   <div class="game-screen">
 
-    <!-- แถบด้านบน: แสดงเงิน Gold และเพชร Gem -->
+    <!-- ============ แถบด้านบน ============ -->
     <header class="top-bar">
-      <div class="currency gold">
-        <span class="currency-icon">🪙</span>
-        <span class="currency-amount">1,250</span>
+
+      <!-- แถวที่ 1: เงิน / ชื่อเกม / เพชร -->
+      <div class="top-row">
+        <div class="currency gold">
+          <span class="currency-icon">🪙</span>
+          <span class="currency-amount" id="ui-gold">0</span>
+        </div>
+
+        <h1 class="game-title">Hero Farm</h1>
+
+        <div class="currency gem">
+          <span class="currency-icon">💎</span>
+          <span class="currency-amount" id="ui-gem">0</span>
+        </div>
       </div>
 
-      <h1 class="game-title">Hero Farm</h1>
+      <!-- แถวที่ 2: เลเวลผู้เล่น / หลอด EXP / พลังงาน -->
+      <div class="top-row player-row">
+        <span class="player-level-badge">Lv.<span id="ui-player-level">1</span></span>
 
-      <div class="currency gem">
-        <span class="currency-icon">💎</span>
-        <span class="currency-amount">85</span>
+        <div class="player-exp">
+          <div class="player-exp-track">
+            <div class="player-exp-fill" id="ui-player-exp-fill"></div>
+          </div>
+          <span class="player-exp-text" id="ui-player-exp-text">0 / 0</span>
+        </div>
+
+        <div class="energy-chip">
+          <span class="energy-icon">⚡</span>
+          <span class="energy-amount" id="ui-energy">0/0</span>
+        </div>
       </div>
     </header>
 
-    <!-- พื้นที่กลางจอ: แสดงตัวละครหลัก (หน้า Home) -->
-    <main class="hero-stage screen" id="home-screen">
-      <div class="hero-glow"></div>
-      <div class="hero-platform">
-        <img src="https://placehold.co/220x220/png?text=Hero" alt="ตัวละครหลัก" class="hero-character" />
-      </div>
-      <p class="hero-name">น้องฮีโร่</p>
-    </main>
 
-    <!-- หน้า Characters: ซ่อนไว้ก่อน จะแสดงเมื่อกดปุ่ม Characters -->
-    <section class="characters-screen screen hidden" id="characters-screen">
-      <button class="back-button" id="back-to-home-btn">← กลับหน้าหลัก</button>
-      <h2 class="screen-title">ตัวละครของฉัน</h2>
-      <!-- การ์ดตัวละครแต่ละใบจะถูกสร้างด้วย game.js ใส่ตรงนี้ -->
-      <div class="characters-grid" id="characters-grid"></div>
-    </section>
+    <!-- ============ พื้นที่หน้าจอทั้งหมด ============ -->
+    <div class="screen-container" id="screen-container">
 
-    <!-- หน้า Battle: สนามต่อสู้ ซ่อนไว้ก่อน จะแสดงเมื่อเลือกตัวละครไปต่อสู้ -->
-    <section class="battle-screen screen hidden" id="battle-screen">
-      <button class="back-button" id="back-to-characters-btn">← กลับหน้าตัวละคร</button>
-      <h2 class="screen-title">สนามต่อสู้</h2>
+      <!-- ---------- Home ---------- -->
+      <main class="hero-stage screen" id="home-screen">
+        <div class="hero-glow"></div>
+        <div class="hero-platform">
+          <img src="https://placehold.co/220x220/png?text=Hero" alt="ตัวละครหลัก" class="hero-character" />
+        </div>
+        <p class="hero-name">น้องฮีโร่</p>
+        <p class="energy-hint" id="ui-energy-hint">พลังงานฟื้นเองทุก 5 นาที</p>
+      </main>
 
-      <div class="battle-arena">
-        <!-- ฝั่งตัวละครผู้เล่น -->
-        <div class="battle-side">
-          <img id="battle-player-image" class="battle-image" src="" alt="ตัวละครผู้เล่น" />
-          <p class="battle-name" id="battle-player-name"></p>
-          <div class="hp-bar-track">
-            <div class="hp-bar-fill player-fill" id="battle-player-hp-fill"></div>
+      <!-- ---------- Characters (ของเดิม) ---------- -->
+      <section class="characters-screen screen hidden" id="characters-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <h2 class="screen-title">ตัวละครของฉัน</h2>
+        <div class="characters-grid" id="characters-grid"></div>
+      </section>
+
+      <!-- ---------- Battle (ของเดิม) ---------- -->
+      <section class="battle-screen screen hidden" id="battle-screen">
+        <button class="back-button" data-goto="characters-screen">← กลับหน้าตัวละคร</button>
+        <h2 class="screen-title">สนามต่อสู้</h2>
+
+        <div class="battle-arena">
+          <div class="battle-side">
+            <img id="battle-player-image" class="battle-image" src="" alt="ตัวละครผู้เล่น" />
+            <p class="battle-name" id="battle-player-name"></p>
+            <div class="hp-bar-track">
+              <div class="hp-bar-fill player-fill" id="battle-player-hp-fill"></div>
+            </div>
+            <p class="hp-text" id="battle-player-hp-text"></p>
           </div>
-          <p class="hp-text" id="battle-player-hp-text"></p>
+
+          <span class="battle-vs">VS</span>
+
+          <div class="battle-side">
+            <img id="battle-enemy-image" class="battle-image" src="" alt="ศัตรู" />
+            <p class="battle-name" id="battle-enemy-name"></p>
+            <div class="hp-bar-track">
+              <div class="hp-bar-fill enemy-fill" id="battle-enemy-hp-fill"></div>
+            </div>
+            <p class="hp-text" id="battle-enemy-hp-text"></p>
+          </div>
         </div>
 
-        <span class="battle-vs">VS</span>
+        <p class="turn-indicator" id="turn-indicator">ตาของคุณ ⚔️</p>
+        <p class="battle-log" id="battle-log">เลือกตัวละครแล้วกดโจมตีเพื่อเริ่มต่อสู้!</p>
+        <button class="attack-button" id="attack-btn">⚔️ โจมตี</button>
+      </section>
 
-        <!-- ฝั่งศัตรู -->
-        <div class="battle-side">
-          <img id="battle-enemy-image" class="battle-image" src="" alt="ศัตรู" />
-          <p class="battle-name" id="battle-enemy-name"></p>
-          <div class="hp-bar-track">
-            <div class="hp-bar-fill enemy-fill" id="battle-enemy-hp-fill"></div>
-          </div>
-          <p class="hp-text" id="battle-enemy-hp-text"></p>
+      <!-- ---------- หน้าที่ยังไม่ถึงคิวสร้าง ---------- -->
+      <section class="placeholder-screen screen hidden" id="team-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🛡️</span>
+          <h2 class="screen-title">จัดทีม</h2>
+          <p class="placeholder-text">เลือกตัวละคร 4 ตัวลงทีม<br />กำลังสร้างใน Phase 6</p>
         </div>
-      </div>
+      </section>
 
-      <!-- บอกว่าตอนนี้เป็นตาของใคร -->
-      <p class="turn-indicator" id="turn-indicator">ตาของคุณ ⚔️</p>
+      <section class="placeholder-screen screen hidden" id="farm-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🌾</span>
+          <h2 class="screen-title">ฟาร์ม</h2>
+          <p class="placeholder-text">ส่งตัวละครไปเก็บทรัพยากรตามเวลา<br />กำลังสร้างใน Phase 5</p>
+        </div>
+      </section>
 
-      <!-- กล่องข้อความบอกเหตุการณ์การต่อสู้ -->
-      <p class="battle-log" id="battle-log">เลือกตัวละครแล้วกดโจมตีเพื่อเริ่มต่อสู้!</p>
+      <section class="placeholder-screen screen hidden" id="adventure-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🗺️</span>
+          <h2 class="screen-title">ผจญภัย</h2>
+          <p class="placeholder-text">แผนที่โลกและการปลดล็อกพื้นที่<br />กำลังสร้างใน Phase 9</p>
+        </div>
+      </section>
 
-      <button class="attack-button" id="attack-btn">⚔️ โจมตี</button>
-    </section>
+      <section class="placeholder-screen screen hidden" id="gacha-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🎁</span>
+          <h2 class="screen-title">อัญเชิญ</h2>
+          <p class="placeholder-text">สุ่มตัวละครใหม่ด้วยเพชร<br />กำลังสร้างใน Phase 7</p>
+        </div>
+      </section>
 
-    <!-- แถบเมนูด้านล่าง: ปุ่มหลักของเกม -->
-    <nav class="menu-bar">
-      <button class="menu-button">
+      <section class="placeholder-screen screen hidden" id="inventory-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🎒</span>
+          <h2 class="screen-title">กระเป๋า</h2>
+          <p class="placeholder-text">ไอเทมและวัตถุดิบทั้งหมด<br />กำลังสร้างใน Phase 4</p>
+        </div>
+      </section>
+
+      <section class="placeholder-screen screen hidden" id="quest-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">📜</span>
+          <h2 class="screen-title">ภารกิจ</h2>
+          <p class="placeholder-text">ภารกิจรายวันและรางวัลล็อกอิน<br />กำลังสร้างใน Phase 8</p>
+        </div>
+      </section>
+
+      <section class="placeholder-screen screen hidden" id="shop-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">🏪</span>
+          <h2 class="screen-title">ร้านค้า</h2>
+          <p class="placeholder-text">แลกไอเทมด้วยทองและเพชร<br />กำลังสร้างใน Phase 10</p>
+        </div>
+      </section>
+
+      <!-- ---------- Settings: ใช้ทดสอบระบบเซฟ ---------- -->
+      <section class="placeholder-screen screen hidden" id="settings-screen">
+        <button class="back-button" data-goto="home-screen">← กลับหน้าหลัก</button>
+        <div class="placeholder-body">
+          <span class="placeholder-icon">⚙️</span>
+          <h2 class="screen-title">ตั้งค่า</h2>
+          <p class="placeholder-text" id="ui-save-status">ยังไม่ได้บันทึก</p>
+
+          <button class="settings-button" id="save-now-btn">💾 บันทึกตอนนี้</button>
+          <button class="settings-button danger" id="reset-game-btn">🗑️ เริ่มเกมใหม่</button>
+        </div>
+      </section>
+
+    </div>
+
+
+    <!-- ============ เมนูล่าง ============ -->
+    <nav class="menu-bar" id="menu-bar">
+      <button class="menu-button" data-screen="home-screen">
+        <span class="menu-icon">🏠</span>
+        <span class="menu-label">หน้าหลัก</span>
+      </button>
+
+      <button class="menu-button" data-screen="characters-screen">
         <span class="menu-icon">🧑‍🤝‍🧑</span>
-        <span class="menu-label">Characters</span>
+        <span class="menu-label">ตัวละคร</span>
       </button>
 
-      <button class="menu-button">
+      <button class="menu-button" data-screen="farm-screen">
         <span class="menu-icon">🌾</span>
-        <span class="menu-label">Farm</span>
+        <span class="menu-label">ฟาร์ม</span>
       </button>
 
-      <button class="menu-button">
-        <span class="menu-icon">🎁</span>
-        <span class="menu-label">Gacha</span>
-      </button>
-
-      <button class="menu-button">
+      <button class="menu-button" data-screen="characters-screen">
         <span class="menu-icon">⚔️</span>
-        <span class="menu-label">Battle</span>
+        <span class="menu-label">ต่อสู้</span>
+      </button>
+
+      <button class="menu-button" id="more-btn">
+        <span class="menu-icon">☰</span>
+        <span class="menu-label">เมนู</span>
       </button>
     </nav>
 
+
+    <!-- ============ แผงเมนูเพิ่มเติม ============ -->
+    <div class="more-overlay hidden" id="more-overlay">
+      <div class="more-panel">
+        <h3 class="more-title">เมนูทั้งหมด</h3>
+        <div class="more-grid">
+          <button class="more-item" data-screen="team-screen"><span>🛡️</span>จัดทีม</button>
+          <button class="more-item" data-screen="adventure-screen"><span>🗺️</span>ผจญภัย</button>
+          <button class="more-item" data-screen="gacha-screen"><span>🎁</span>อัญเชิญ</button>
+          <button class="more-item" data-screen="inventory-screen"><span>🎒</span>กระเป๋า</button>
+          <button class="more-item" data-screen="quest-screen"><span>📜</span>ภารกิจ</button>
+          <button class="more-item" data-screen="shop-screen"><span>🏪</span>ร้านค้า</button>
+          <button class="more-item" data-screen="settings-screen"><span>⚙️</span>ตั้งค่า</button>
+        </div>
+        <button class="more-close" id="more-close-btn">ปิด</button>
+      </div>
+    </div>
+
   </div>
 
-  <script src="game.js"></script>
+  <!-- type="module" ทำให้ไฟล์ js แยกกันได้ ต้องเปิดผ่าน Live Server เท่านั้น -->
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

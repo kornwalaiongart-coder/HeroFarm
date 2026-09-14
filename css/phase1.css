@@ -1,0 +1,324 @@
+/* =====================================================
+   phase1.css
+   เพิ่มเติมจาก style.css เดิม — ไม่ได้แก้ของเดิมเลย
+   ไฟล์นี้ดูแลเฉพาะของใหม่ใน Phase 1:
+   แถบบนแถวที่ 2, กล่องหน้าจอ, หน้า placeholder, เมนูเพิ่มเติม
+===================================================== */
+
+/* ---------- แถบด้านบน: เปลี่ยนจาก 1 แถว เป็น 2 แถว ---------- */
+.top-bar {
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 10px;
+}
+
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+/* ---------- แถวที่ 2: เลเวล + EXP + พลังงาน ---------- */
+.player-row {
+  background: #ffffff33;
+  border: 1px solid #ffffff55;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.player-level-badge {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff8ea;
+  text-shadow: 0 1px 0 #6b4fa0;
+  flex-shrink: 0;
+}
+
+.player-exp {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.player-exp-track {
+  flex: 1;
+  height: 8px;
+  background: #2d1b4e44;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.player-exp-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a7e9ff, #4fc3f7);
+  transition: width 0.4s ease;
+}
+
+.player-exp-text {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff8ea;
+  white-space: nowrap;
+}
+
+.energy-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.energy-icon {
+  font-size: 13px;
+}
+
+.energy-amount {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff8ea;
+  white-space: nowrap;
+}
+
+/* ---------- กล่องครอบหน้าจอทั้งหมด ---------- */
+.screen-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* กัน content ดันจอจนล้น */
+}
+
+.energy-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4a3768aa;
+}
+
+/* ---------- หน้าที่ยังไม่ได้สร้าง ---------- */
+.placeholder-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.placeholder-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.placeholder-icon {
+  font-size: 52px;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.2));
+}
+
+.placeholder-text {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+  color: #4a3768;
+  background: #fff8eacc;
+  padding: 10px 18px;
+  border-radius: 16px;
+}
+
+/* ---------- ปุ่มในหน้าตั้งค่า ---------- */
+.settings-button {
+  margin-top: 4px;
+  min-width: 180px;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 20px;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff8ea;
+  background: #7a5fc4;
+  box-shadow: 0 4px 0 #5b4494;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.settings-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #5b4494;
+}
+
+.settings-button.danger {
+  background: #d1495b;
+  box-shadow: 0 4px 0 #a13245;
+}
+
+.settings-button.danger:active {
+  box-shadow: 0 0 0 #a13245;
+}
+
+/* ---------- เมนูล่าง: ขยายจาก 4 เป็น 5 ปุ่ม ---------- */
+.menu-bar {
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 10px;
+  flex-shrink: 0;
+}
+
+.menu-button {
+  padding: 8px 2px;
+}
+
+.menu-icon {
+  font-size: 20px;
+}
+
+.menu-label {
+  font-size: 11px;
+}
+
+/* ปุ่มเมนูของหน้าที่กำลังเปิดอยู่ ให้เด่นขึ้น */
+.menu-button.active {
+  background: #ffd28a;
+  box-shadow: 0 3px 0 #d9a256;
+}
+
+/* ---------- แผงเมนูเพิ่มเติม ---------- */
+.more-overlay {
+  position: absolute;
+  inset: 0;
+  background: #1c133399;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 20;
+}
+
+.more-overlay.hidden {
+  display: none;
+}
+
+.more-panel {
+  width: 100%;
+  background: #fff8ea;
+  border-radius: 24px 24px 0 0;
+  padding: 18px 16px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: more-slide-up 0.25s ease;
+}
+
+@keyframes more-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.more-title {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 16px;
+  color: #4a3768;
+  text-align: center;
+}
+
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.more-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 4px;
+  border: none;
+  border-radius: 16px;
+  background: #ffe9c2;
+  box-shadow: 0 3px 0 #e3bd7c;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: #6b4a1f;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.more-item span {
+  font-size: 22px;
+}
+
+.more-item:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #e3bd7c;
+}
+
+.more-close {
+  border: none;
+  border-radius: 14px;
+  padding: 12px;
+  background: #e8dcc4;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #6b4a1f;
+  cursor: pointer;
+}
+
+/* ---------- ข้อความแจ้งเตือนกลางจอ ---------- */
+.toast {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2d1b4ee6;
+  color: #fff8ea;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  z-index: 30;
+  pointer-events: none;
+  animation: toast-fade 2s ease forwards;
+}
+
+@keyframes toast-fade {
+  0% { opacity: 0; transform: translate(-50%, 10px); }
+  15% { opacity: 1; transform: translate(-50%, 0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- จอแคบมาก ---------- */
+@media (max-width: 360px) {
+  .player-exp-text {
+    display: none;
+  }
+
+  .more-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* คนที่ตั้งค่าเครื่องให้ลดการเคลื่อนไหว จะไม่เห็นอนิเมชัน */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
