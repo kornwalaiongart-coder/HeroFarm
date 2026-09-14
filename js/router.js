@@ -11,15 +11,37 @@ import { renderCharacters } from "./systems/characters.js";
 
 let currentScreenId = "home-screen";
 
+// ปุ่มเมนูล่างที่ควรไฮไลต์เมื่อเปิดหน้านั้น (อ้างอิง data-menu ใน HTML)
+// ปุ่ม "ตัวละคร" กับ "ต่อสู้" ไปหน้าเดียวกัน จึงต้องแยกด้วย data-menu แทน data-screen
+const MENU_FOR_SCREEN = {
+  "home-screen": "home",
+  "characters-screen": "characters",
+  "farm-screen": "farm",
+  "battle-screen": "battle"
+};
+
+// ระบบอื่นใช้ขวางการเปลี่ยนหน้าได้ (เช่น ระหว่างต่อสู้)
+// guard(screenId) คืน false = ห้ามเปลี่ยนหน้า
+let navigationGuard = null;
+
+export function setNavigationGuard(guard) {
+  navigationGuard = guard;
+}
+
 export function getCurrentScreen() {
   return currentScreenId;
 }
 
-export function showScreen(screenId) {
+export function showScreen(screenId, menuKey = MENU_FOR_SCREEN[screenId]) {
   const target = document.getElementById(screenId);
 
   if (!target) {
     console.error("ไม่พบหน้าจอชื่อ:", screenId);
+    return;
+  }
+
+  if (navigationGuard && !navigationGuard(screenId)) {
+    closeMorePanel();
     return;
   }
 
@@ -35,14 +57,14 @@ export function showScreen(screenId) {
     renderCharacters();
   }
 
-  highlightMenu(screenId);
+  highlightMenu(menuKey);
   closeMorePanel();
 }
 
-// ทำให้ปุ่มเมนูของหน้าที่เปิดอยู่ดูเด่นขึ้น
-function highlightMenu(screenId) {
+// ทำให้ปุ่มเมนูของหน้าที่เปิดอยู่ดูเด่นขึ้น (หน้าที่ไม่มีปุ่มในเมนูล่าง = ไม่ไฮไลต์)
+function highlightMenu(menuKey) {
   document.querySelectorAll(".menu-button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.screen === screenId);
+    button.classList.toggle("active", menuKey !== undefined && button.dataset.menu === menuKey);
   });
 }
 
@@ -59,7 +81,7 @@ export function initRouter() {
   // ปุ่มไหนก็ได้ที่มี data-screen หรือ data-goto จะพาไปหน้านั้น
   document.querySelectorAll("[data-screen], [data-goto]").forEach((button) => {
     button.addEventListener("click", () => {
-      showScreen(button.dataset.screen || button.dataset.goto);
+      showScreen(button.dataset.screen || button.dataset.goto, button.dataset.menu);
     });
   });
 

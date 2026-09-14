@@ -86,8 +86,12 @@ function startGameClock() {
 function startAutoSave() {
   setInterval(saveGame, 30_000);
 
-  // บันทึกอีกครั้งตอนปิดแท็บ กันข้อมูลหายนาทีสุดท้าย
-  window.addEventListener("beforeunload", saveGame);
+  // บันทึกอีกครั้งตอนสลับแอป/ปิดแท็บ กันข้อมูลหายนาทีสุดท้าย
+  // มือถือแทบไม่ยิง beforeunload จึงใช้ visibilitychange + pagehide แทน
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") saveGame();
+  });
+  window.addEventListener("pagehide", saveGame);
 }
 
 startGame();

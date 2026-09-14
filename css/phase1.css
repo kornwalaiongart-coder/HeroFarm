@@ -322,3 +322,9 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ระหว่างต่อสู้ เมนูล่างถูกล็อก (ดู js/systems/battle.js) */
+.menu-bar.locked .menu-button {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}

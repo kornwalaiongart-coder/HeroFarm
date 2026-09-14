@@ -7,11 +7,11 @@
 // ตัวเลขที่เห็นบนหน้าจอเป็นแค่ "ภาพสะท้อน" ของ state เท่านั้น
 // =====================================================
 
-import { STARTER_CHARACTERS } from "../data/characters.js";
+import { STARTER_ROSTER } from "../data/characters.js";
 
 // ---------- ค่าคงที่ของเกม (ปรับสมดุลได้ที่นี่) ----------
 export const CONFIG = {
-  SAVE_VERSION: 1,
+  SAVE_VERSION: 2,             // เปลี่ยนโครงสร้างเซฟเมื่อไหร่ ต้องเพิ่มเลขนี้ + เขียน migration ใน save.js
 
   ENERGY_MAX: 60,              // พลังงานสูงสุดตอนเริ่มเกม
   ENERGY_REGEN_MS: 5 * 60_000, // ฟื้น 1 หน่วยทุก 5 นาที
@@ -39,9 +39,8 @@ export function createNewState() {
       energyUpdatedAt: Date.now()
     },
 
-    // structuredClone = ก๊อปข้อมูลแบบแยกขาดจากต้นฉบับ
-    // เพื่อให้การเลเวลอัพในเกม ไม่ไปแก้ไฟล์ data/characters.js
-    characters: structuredClone(STARTER_CHARACTERS),
+    // เก็บแค่ข้อมูลที่เปลี่ยนระหว่างเล่น ชื่อ/รูป/ค่าพลังดึงจาก data/characters.js ตอนใช้งาน
+    characters: STARTER_ROSTER.map(({ id, level }) => ({ id, level, exp: 0 })),
 
     lastSavedAt: null
   };
@@ -93,6 +92,12 @@ export function hasEnergy(amount) {
 // ใช้พลังงาน — คืน true ถ้าใช้สำเร็จ, false ถ้าไม่พอ
 export function spendEnergy(amount) {
   if (!hasEnergy(amount)) return false;
+
+  // ถ้าเดิมพลังงานเต็ม ให้เริ่มนับเวลาฟื้นจากตอนนี้ ไม่ใช่จากเวลาเก่าที่ค้างไว้
+  if (state.player.energy >= state.player.maxEnergy) {
+    state.player.energyUpdatedAt = Date.now();
+  }
+
   state.player.energy -= amount;
   return true;
 }
@@ -136,6 +141,13 @@ export function updateEnergyFromTime() {
   }
 
   const elapsed = now - player.energyUpdatedAt;
+
+  // นาฬิกาเครื่องถูกย้อนหลัง → ตั้งเวลาใหม่ ไม่ให้พลังงานค้างไม่ฟื้นไปอีกนาน
+  if (elapsed < 0) {
+    player.energyUpdatedAt = now;
+    return 0;
+  }
+
   const gained = Math.floor(elapsed / CONFIG.ENERGY_REGEN_MS);
 
   if (gained <= 0) return 0;

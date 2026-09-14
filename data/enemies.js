@@ -26,8 +26,8 @@ export const ENEMY_LIST = [
   {
     id: "golem",
     name: "โกเลมหิน",
-    maxHp: 60,
-    atk: 8,
+    maxHp: 70, // อึดแต่ตีเบา — เดิม 60/8 ทำให้ตัวละครทุกตัวแพ้ 100%
+    atk: 4,
     expReward: 40,
     goldReward: 60,
     image: "https://placehold.co/160x160/png?text=Golem"

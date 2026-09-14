@@ -76,7 +76,7 @@
 
       <!-- ---------- Battle (ของเดิม) ---------- -->
       <section class="battle-screen screen hidden" id="battle-screen">
-        <button class="back-button" data-goto="characters-screen">← กลับหน้าตัวละคร</button>
+        <button class="back-button" id="battle-back-btn">← กลับหน้าตัวละคร</button>
         <h2 class="screen-title">สนามต่อสู้</h2>
 
         <div class="battle-arena">
@@ -188,22 +188,22 @@
 
     <!-- ============ เมนูล่าง ============ -->
     <nav class="menu-bar" id="menu-bar">
-      <button class="menu-button" data-screen="home-screen">
+      <button class="menu-button" data-screen="home-screen" data-menu="home">
         <span class="menu-icon">🏠</span>
         <span class="menu-label">หน้าหลัก</span>
       </button>
 
-      <button class="menu-button" data-screen="characters-screen">
+      <button class="menu-button" data-screen="characters-screen" data-menu="characters">
         <span class="menu-icon">🧑‍🤝‍🧑</span>
         <span class="menu-label">ตัวละคร</span>
       </button>
 
-      <button class="menu-button" data-screen="farm-screen">
+      <button class="menu-button" data-screen="farm-screen" data-menu="farm">
         <span class="menu-icon">🌾</span>
         <span class="menu-label">ฟาร์ม</span>
       </button>
 
-      <button class="menu-button" data-screen="characters-screen">
+      <button class="menu-button" data-screen="characters-screen" data-menu="battle">
         <span class="menu-icon">⚔️</span>
         <span class="menu-label">ต่อสู้</span>
       </button>
