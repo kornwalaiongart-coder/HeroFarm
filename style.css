@@ -1,0 +1,514 @@
+/* ---------------------------------------------------
+   ตั้งค่าพื้นฐาน
+--------------------------------------------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Nunito", sans-serif;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #1c1333;
+}
+
+/* ---------------------------------------------------
+   กรอบหน้าจอเกม
+   - บนคอมพิวเตอร์: จะดูเหมือนหน้าจอมือถือวางอยู่ตรงกลาง
+   - บนมือถือ: จะเต็มหน้าจอพอดี
+--------------------------------------------------- */
+.game-screen {
+  width: 100%;
+  max-width: 480px;
+  height: 100vh;
+  max-height: 900px;
+
+  display: flex;
+  flex-direction: column;
+
+  /* ท้องฟ้ายามเย็นแฟนตาซี ไล่จากม่วงลาเวนเดอร์ไปส้มพีชอ่อน */
+  background: linear-gradient(180deg, #8b6fd8 0%, #b98fd6 35%, #f3b98f 75%, #fbdcb0 100%);
+
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------------------------------------------------
+   แถบด้านบน: ชื่อเกม + เงิน Gold + เพชร Gem
+--------------------------------------------------- */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px 8px;
+}
+
+.game-title {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 22px;
+  color: #fff8ea;
+  text-shadow: 0 2px 0 #6b4fa0, 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+.currency {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff8ea;
+  border: 2px solid #ffffffaa;
+  border-radius: 999px;
+  padding: 6px 12px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.currency-icon {
+  font-size: 16px;
+}
+
+.currency-amount {
+  font-weight: 800;
+  font-size: 14px;
+  color: #4a3a2a;
+}
+
+.currency.gold .currency-amount {
+  color: #a3701a;
+}
+
+.currency.gem .currency-amount {
+  color: #1a8a82;
+}
+
+/* ---------------------------------------------------
+   พื้นที่กลางจอ: จุดแสดงตัวละครหลัก
+--------------------------------------------------- */
+.hero-stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* แสงเรืองด้านหลังตัวละคร ให้ดูเด่นเป็นจุดสนใจ */
+.hero-glow {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3d0 0%, rgba(255, 243, 208, 0) 70%);
+}
+
+.hero-platform {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-character {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.25));
+}
+
+.hero-name {
+  margin-top: 12px;
+  font-weight: 800;
+  color: #4a3768;
+  background: #fff8eacc;
+  padding: 4px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------
+   ระบบซ่อน/แสดงหน้าจอ (screen)
+   ใช้ class "hidden" เพื่อซ่อนหน้าจอที่ไม่ได้ใช้งาน
+--------------------------------------------------- */
+.screen.hidden {
+  display: none;
+}
+
+/* ---------------------------------------------------
+   หน้า Characters: รายการตัวละครทั้งหมด
+--------------------------------------------------- */
+.characters-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.back-button {
+  align-self: flex-start;
+  background: #fff8eacc;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #4a3768;
+  cursor: pointer;
+}
+
+.screen-title {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 18px;
+  color: #fff8ea;
+  text-shadow: 0 2px 0 #6b4fa0, 0 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* ตารางการ์ดตัวละคร: 2 คอลัมน์บนมือถือ */
+.characters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.character-card {
+  background: #fff8ea;
+  border-radius: 16px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 3px 0 #e3bd7c;
+}
+
+.character-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #ddd;
+}
+
+.character-name {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #4a3768;
+  text-align: center;
+}
+
+.character-level {
+  font-size: 12px;
+  font-weight: 800;
+  color: #a3701a;
+  background: #ffe9c2;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+/* แถบ EXP บนการ์ดตัวละคร (แสดงความคืบหน้าไปเลเวลถัดไป) */
+.exp-bar-track {
+  width: 100%;
+  height: 8px;
+  background: #e8dcc4;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.exp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd76e, #ffa726);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.exp-text {
+  font-size: 10px;
+  color: #8a7558;
+  font-weight: 700;
+}
+
+/* ปุ่ม "ต่อสู้" บนการ์ดตัวละครแต่ละใบ */
+.battle-select-button {
+  margin-top: 4px;
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 0;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff8ea;
+  background: #d1495b;
+  box-shadow: 0 3px 0 #a13245;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.battle-select-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #a13245;
+}
+
+/* ---------------------------------------------------
+   หน้า Battle: สนามต่อสู้
+--------------------------------------------------- */
+.battle-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.battle-arena {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.battle-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative; /* ให้ตัวเลขดาเมจ (damage-popup) ลอยอยู่เหนือฝั่งนี้ได้ */
+}
+
+.turn-indicator {
+  text-align: center;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: #fff8ea;
+  text-shadow: 0 2px 0 #6b4fa0;
+}
+
+/* ตัวเลขดาเมจที่ลอยขึ้นแล้วจางหายตอนโดนตี */
+.damage-popup {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  color: #ff4757;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  animation: damage-float 0.8s ease forwards;
+}
+
+@keyframes damage-float {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -40px);
+  }
+}
+
+/* ท่ากระเพื่อมตอน "โจมตี" */
+.attack-anim {
+  animation: attack-lunge 0.3s ease;
+}
+
+@keyframes attack-lunge {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* อาการสั่นตอน "โดนตี" */
+.hit-shake {
+  animation: hit-shake 0.4s ease;
+}
+
+@keyframes hit-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.battle-image {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 16px;
+  background: #ddd;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.battle-vs {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff8ea;
+  text-shadow: 0 2px 0 #6b4fa0;
+}
+
+.battle-name {
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff8ea;
+  text-align: center;
+}
+
+/* หลอดเลือด (HP bar): กรอบนอกสีเข้ม + แถบสีข้างในที่ย่อ/ขยายตามเลือด */
+.hp-bar-track {
+  width: 100%;
+  height: 14px;
+  background: #2d1b4e55;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid #fff8ea88;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease; /* ทำให้เลือดลดแบบลื่นไหล ไม่กระตุก */
+}
+
+.player-fill {
+  background: linear-gradient(90deg, #6fcf97, #27ae60);
+}
+
+.enemy-fill {
+  background: linear-gradient(90deg, #ff8a80, #d1495b);
+}
+
+.hp-text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff8ea;
+}
+
+.battle-log {
+  background: #fff8eacc;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #4a3768;
+  min-height: 40px;
+  white-space: pre-line; /* ให้ขึ้นบรรทัดใหม่ตาม \n ในข้อความ */
+}
+
+.attack-button {
+  border: none;
+  border-radius: 16px;
+  padding: 14px 0;
+  font-family: "Baloo 2", sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff8ea;
+  background: linear-gradient(180deg, #ff9d6c, #d1495b);
+  box-shadow: 0 4px 0 #a13245;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.attack-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #a13245;
+}
+
+.attack-button:disabled {
+  background: #b8a9c9;
+  box-shadow: 0 4px 0 #8f7fa8;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------
+   แถบเมนูด้านล่าง: ปุ่มหลัก 4 ปุ่ม
+--------------------------------------------------- */
+.menu-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px;
+  background: #fff8ea;
+  border-top: 3px solid #f0dcb8;
+}
+
+.menu-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 16px;
+  background: #ffe9c2;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #e3bd7c;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+/* ตอนกดปุ่ม ให้ปุ่มยุบลงเล็กน้อย ดูเหมือนถูกกดจริง */
+.menu-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 #e3bd7c;
+}
+
+.menu-icon {
+  font-size: 22px;
+}
+
+.menu-label {
+  font-family: "Baloo 2", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b4a1f;
+}
+
+/* ---------------------------------------------------
+   ปรับขนาดเล็กน้อยสำหรับจอที่เล็กมาก (มือถือจอแคบ)
+--------------------------------------------------- */
+@media (max-width: 360px) {
+  .game-title {
+    font-size: 18px;
+  }
+
+  .hero-platform {
+    width: 180px;
+    height: 180px;
+  }
+
+  .menu-label {
+    font-size: 11px;
+  }
+}

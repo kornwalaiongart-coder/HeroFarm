@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <!-- ทำให้แสดงผลดีทั้งบนมือถือและคอมพิวเตอร์ -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hero Farm</title>
+
+  <!-- ฟอนต์จาก Google Fonts: Baloo 2 สำหรับหัวข้อ, Nunito สำหรับตัวหนังสือทั่วไป -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="game-screen">
+
+    <!-- แถบด้านบน: แสดงเงิน Gold และเพชร Gem -->
+    <header class="top-bar">
+      <div class="currency gold">
+        <span class="currency-icon">🪙</span>
+        <span class="currency-amount">1,250</span>
+      </div>
+
+      <h1 class="game-title">Hero Farm</h1>
+
+      <div class="currency gem">
+        <span class="currency-icon">💎</span>
+        <span class="currency-amount">85</span>
+      </div>
+    </header>
+
+    <!-- พื้นที่กลางจอ: แสดงตัวละครหลัก (หน้า Home) -->
+    <main class="hero-stage screen" id="home-screen">
+      <div class="hero-glow"></div>
+      <div class="hero-platform">
+        <img src="https://placehold.co/220x220/png?text=Hero" alt="ตัวละครหลัก" class="hero-character" />
+      </div>
+      <p class="hero-name">น้องฮีโร่</p>
+    </main>
+
+    <!-- หน้า Characters: ซ่อนไว้ก่อน จะแสดงเมื่อกดปุ่ม Characters -->
+    <section class="characters-screen screen hidden" id="characters-screen">
+      <button class="back-button" id="back-to-home-btn">← กลับหน้าหลัก</button>
+      <h2 class="screen-title">ตัวละครของฉัน</h2>
+      <!-- การ์ดตัวละครแต่ละใบจะถูกสร้างด้วย game.js ใส่ตรงนี้ -->
+      <div class="characters-grid" id="characters-grid"></div>
+    </section>
+
+    <!-- หน้า Battle: สนามต่อสู้ ซ่อนไว้ก่อน จะแสดงเมื่อเลือกตัวละครไปต่อสู้ -->
+    <section class="battle-screen screen hidden" id="battle-screen">
+      <button class="back-button" id="back-to-characters-btn">← กลับหน้าตัวละคร</button>
+      <h2 class="screen-title">สนามต่อสู้</h2>
+
+      <div class="battle-arena">
+        <!-- ฝั่งตัวละครผู้เล่น -->
+        <div class="battle-side">
+          <img id="battle-player-image" class="battle-image" src="" alt="ตัวละครผู้เล่น" />
+          <p class="battle-name" id="battle-player-name"></p>
+          <div class="hp-bar-track">
+            <div class="hp-bar-fill player-fill" id="battle-player-hp-fill"></div>
+          </div>
+          <p class="hp-text" id="battle-player-hp-text"></p>
+        </div>
+
+        <span class="battle-vs">VS</span>
+
+        <!-- ฝั่งศัตรู -->
+        <div class="battle-side">
+          <img id="battle-enemy-image" class="battle-image" src="" alt="ศัตรู" />
+          <p class="battle-name" id="battle-enemy-name"></p>
+          <div class="hp-bar-track">
+            <div class="hp-bar-fill enemy-fill" id="battle-enemy-hp-fill"></div>
+          </div>
+          <p class="hp-text" id="battle-enemy-hp-text"></p>
+        </div>
+      </div>
+
+      <!-- บอกว่าตอนนี้เป็นตาของใคร -->
+      <p class="turn-indicator" id="turn-indicator">ตาของคุณ ⚔️</p>
+
+      <!-- กล่องข้อความบอกเหตุการณ์การต่อสู้ -->
+      <p class="battle-log" id="battle-log">เลือกตัวละครแล้วกดโจมตีเพื่อเริ่มต่อสู้!</p>
+
+      <button class="attack-button" id="attack-btn">⚔️ โจมตี</button>
+    </section>
+
+    <!-- แถบเมนูด้านล่าง: ปุ่มหลักของเกม -->
+    <nav class="menu-bar">
+      <button class="menu-button">
+        <span class="menu-icon">🧑‍🤝‍🧑</span>
+        <span class="menu-label">Characters</span>
+      </button>
+
+      <button class="menu-button">
+        <span class="menu-icon">🌾</span>
+        <span class="menu-label">Farm</span>
+      </button>
+
+      <button class="menu-button">
+        <span class="menu-icon">🎁</span>
+        <span class="menu-label">Gacha</span>
+      </button>
+
+      <button class="menu-button">
+        <span class="menu-icon">⚔️</span>
+        <span class="menu-label">Battle</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
