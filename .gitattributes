@@ -1,0 +1,15 @@
+# ไฟล์ข้อความทุกไฟล์ใช้ LF เสมอ ไม่ว่าจะเปิดบนเครื่องไหน
+* text=auto eol=lf
+
+# ไฟล์ไบนารี ห้ามแปลง
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp3 binary
+*.ogg binary
+*.wav binary
+*.woff binary
+*.woff2 binary
