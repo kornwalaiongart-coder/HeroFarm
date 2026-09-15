@@ -13,12 +13,14 @@ import { ITEMS } from "./systems/itemDatabase.js";
 import { MONSTERS } from "../data/monsters.js";
 import { createWorld, updateWorld } from "./game/world.js";
 import { createRenderer } from "./game/render.js";
+import { loadCharacterSprites } from "./game/characterSprites.js";
 import { initInput, readInput, clearInput } from "./game/input.js";
 import { renderHud, showToast } from "./ui/hud.js";
-import { initPanels, isPanelOpen, renderPanel } from "./ui/panels.js";
+import { initPanels, isPanelOpen, renderPanel, refreshCollectionAlert } from "./ui/panels.js";
 import { showCreateScreen } from "./ui/create.js";
 import { useItem, pickHealingPotion } from "./systems/consumables.js";
 import { getPlayerStats } from "./systems/stats.js";
+import { getRewardsCompletedBy } from "./systems/collectionRewards.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,6 +32,7 @@ function start() {
   const hasSave = loadGame();
 
   renderer = createRenderer($("world-canvas"));
+  loadCharacterSprites();   // โหลดภาพตัวละครเบื้องหลัง ระหว่างรอจะวาดแบบรูปทรงง่ายไปก่อน
   window.addEventListener("resize", () => renderer.resize());
 
   initInput({
@@ -64,6 +67,7 @@ function start() {
 
 function beginGame(hasSave) {
   world = null;
+  refreshCollectionAlert();
 
   if (!state.profile) {
     showCreateScreen(() => {
@@ -100,7 +104,7 @@ function loop(now) {
     if (!isPanelOpen()) {
       handleEvents(updateWorld(world, readInput(), dt));
     }
-    renderer.draw(world, state.profile);
+    renderer.draw(world, state.profile, state.equipped);
     renderHud(world);
   }
 
@@ -130,6 +134,10 @@ function handleEvents(events) {
         // ได้ครั้งแรก → ลงสมุดสะสม / อุปกรณ์ → แจ้งเตือนเด่นๆ / วัตถุดิบธรรมดาดูแค่ตัวหนังสือลอยพอ
         if (item && event.isNew) {
           showToast("📖 ค้นพบไอเทมใหม่! " + item.icon + " " + item.name);
+          for (const reward of getRewardsCompletedBy(item.id)) {
+            showToast("🏆 สะสมครบ! รับรางวัล “" + reward.name + "” ได้ที่ 📖 สมุดสะสม");
+          }
+          refreshCollectionAlert();
         } else if (item?.isEquippable) {
           showToast("🎉 ได้รับ " + item.icon + " " + item.name);
         }

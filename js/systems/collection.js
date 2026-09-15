@@ -13,6 +13,7 @@ import { state } from "../state.js";
 import { STARTER_EQUIPMENT, resolveItemId, getCollectionProgress } from "./itemDatabase.js";
 import { MONSTERS } from "../../data/monsters.js";
 import { MAPS } from "../../data/maps.js";
+import { COLLECTION_REWARDS } from "../../data/collectionRewards.js";
 
 export function isDiscovered(itemId) {
   const id = resolveItemId(itemId);
@@ -45,7 +46,7 @@ export function getCollectionSummary() {
 
 // ---------- ไอเทมนี้ได้จากไหน ----------
 // อ่านจากรายการดรอปของมอนเตอร์ + ของเริ่มต้น (ไม่ต้องเขียนข้อมูลซ้ำ)
-// คืน [{ kind: "starter" } | { kind: "monster", monsterId, icon, name, level, maps: [ชื่อแผนที่], chance }]
+// คืน [{ kind: "starter" } | { kind: "reward", name } | { kind: "monster", monsterId, icon, name, level, maps: [ชื่อแผนที่], chance }]
 let sourceIndex = null;
 
 function buildSourceIndex() {
@@ -53,6 +54,9 @@ function buildSourceIndex() {
   const add = (itemId, source) => (index[itemId] ??= []).push(source);
 
   for (const itemId of STARTER_EQUIPMENT) add(itemId, { kind: "starter" });
+  for (const reward of COLLECTION_REWARDS) {
+    if (reward.itemId) add(reward.itemId, { kind: "reward", name: reward.name });
+  }
 
   for (const [monsterId, monster] of Object.entries(MONSTERS)) {
     const maps = Object.values(MAPS)

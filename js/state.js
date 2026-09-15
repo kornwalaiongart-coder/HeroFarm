@@ -47,8 +47,10 @@ export function createNewState() {
     // แผนที่ที่อยู่ล่าสุด — โหลดเกมแล้วกลับมาที่เดิม (เกิดที่จุดพักของแผนที่นั้น)
     mapId: START_MAP_ID,
 
-    // สมุดสะสม: ไอเทมที่เคยได้ { itemId: เวลาที่ได้ครั้งแรก }
-    collection: { discovered: {} },
+    // สมุดสะสม
+    //   discovered     = ไอเทมที่เคยได้ { itemId: เวลาที่ได้ครั้งแรก }
+    //   claimedRewards = รางวัลที่กดรับแล้ว { rewardId: เวลาที่กดรับ }
+    collection: { discovered: {}, claimedRewards: {} },
 
     // เลขประจำตัวอุปกรณ์ชิ้นถัดไป (อุปกรณ์ชนิดเดียวกันหลายชิ้นต้องแยกกันได้)
     nextUid: 1,

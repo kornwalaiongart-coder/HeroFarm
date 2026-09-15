@@ -35,6 +35,10 @@
       resolveItemId, isStackable, getCollectionProgress, getCollectionItems, validateItemDefinitions
     } from "../js/systems/itemDatabase.js";
     import { isDiscovered, getCollectionSummary, getItemSources } from "../js/systems/collection.js";
+    import { loadCharacterSprites, getCharacterSprite } from "../js/game/characterSprites.js";
+    import {
+      COLLECTION_REWARDS, getRewardStatuses, claimReward, getRewardsCompletedBy, validateCollectionRewards
+    } from "../js/systems/collectionRewards.js";
 
     const lines = [];
     const log = (status, text) => lines.push(`${status} ${text}`);
@@ -330,6 +334,112 @@
     });
 
     // =====================================================
+    // เงื่อนไขเลเวลอุปกรณ์
+    // =====================================================
+    await test("เลเวลไม่ถึง สวมอุปกรณ์ไม่ได้ / เลเวลถึงแล้วสวมได้", () => {
+      freshCharacter();
+      const sword = addEquipment("iron_sword");   // ต้อง Lv.3
+      const before = state.equipped.weapon;
+      const result = equip(sword.uid);
+      assert(!result.ok && result.reason === "level" && result.required === 3 && state.equipped.weapon === before, JSON.stringify(result));
+
+      state.player.level = 3;
+      assert(equip(sword.uid).ok && state.equipped.weapon === sword.uid, "Lv.3 สวมได้");
+      assert(equip(9999).reason === "notFound", "notFound");
+    });
+
+    await test("โหลดเซฟ: อุปกรณ์ที่เลเวลไม่ถึงถูกถอด แต่ของยังอยู่ในกระเป๋า", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 3,
+        profile: { name: "Low", gender: "male" },
+        player: { level: 2, exp: 0, gold: 0, gem: 0 },
+        inventory: { materials: {}, equipment: [{ uid: 1, itemId: "flame_sword", plus: 0 }, { uid: 2, itemId: "cloth_armor", plus: 0 }] },
+        equipped: { weapon: 1, armor: 2 },
+        nextUid: 3
+      }));
+      assert(loadGame(), "load");
+      assert(state.equipped.weapon === null && state.equipped.armor === 2 && state.inventory.equipment.length === 2, JSON.stringify(state.equipped));
+    });
+
+    // =====================================================
+    // รางวัลสมุดสะสม
+    // =====================================================
+    await test("รางวัลสมุดสะสม: ข้อมูลถูกต้อง + ไอเทมรางวัลไม่นับในสมุด", () => {
+      assert(validateCollectionRewards().length === 0, validateCollectionRewards().join(" | "));
+      assert(validateCollectionRewards([{ id: "x", type: "food", gold: 1 }]).length > 0, "type ผิดต้องจับได้");
+      assert(validateCollectionRewards([{ id: "x", type: "weapon", itemId: "iron_sword" }]).some((e) => e.includes("reward")), "ไอเทมรางวัลต้องมีป้าย reward");
+      for (const reward of COLLECTION_REWARDS) {
+        if (reward.itemId) assert(!getCollectionItems().some((item) => item.id === reward.itemId), reward.itemId + " ไม่ควรนับในสมุด");
+      }
+      assert(getItemSources("legend_collector_trophy")[0]?.kind === "reward", "ที่มาของถ้วยรางวัล");
+    });
+
+    await test("รางวัลสมุดสะสม: ยังไม่ครบรับไม่ได้ / ครบแล้วรับได้ครั้งเดียว", () => {
+      freshCharacter();
+      assert(claimReward("consumable_complete").reason === "incomplete", "ยังไม่ครบ");
+      assert(claimReward("nope").reason === "unknown", "unknown");
+
+      const potions = getCollectionItems("consumable");
+      for (const item of potions.slice(0, -1)) addLoot(item.id, 1);
+      const last = potions[potions.length - 1];
+      assert(getRewardsCompletedBy(last.id).length === 0, "ยังไม่ครบห้ามแจ้ง");
+      addLoot(last.id, 1);
+      assert(getRewardsCompletedBy(last.id).some((reward) => reward.id === "consumable_complete"), "ครบแล้วต้องแจ้ง");
+
+      const gold = state.player.gold;
+      const gem = state.player.gem;
+      const reward = COLLECTION_REWARDS.find((other) => other.id === "consumable_complete");
+      const result = claimReward("consumable_complete");
+      assert(result.ok && state.player.gold === gold + reward.gold && state.player.gem === gem + reward.gem, JSON.stringify(result));
+      assert(countMaterial(reward.itemId) === 1 && isDiscovered(reward.itemId), "ได้เหรียญตรา");
+      assert(claimReward("consumable_complete").reason === "claimed", "รับซ้ำไม่ได้");
+      assert(getRewardStatuses().find((other) => other.id === "consumable_complete").claimed, "สถานะรับแล้ว");
+    });
+
+    await test("รางวัลสมุดสะสม: สถานะการรับอยู่ในเซฟ + รางวัลที่ไม่มีจริงถูกตัดทิ้ง", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 3,
+        profile: { name: "Col", gender: "male" },
+        player: { level: 1, exp: 0, gold: 0, gem: 0 },
+        inventory: { materials: {}, equipment: [] },
+        equipped: { weapon: null, armor: null },
+        nextUid: 1,
+        collection: { discovered: {}, claimedRewards: { armor_complete: 55, fake_reward: 1 } }
+      }));
+      assert(loadGame(), "load");
+      assert(JSON.stringify(state.collection.claimedRewards) === '{"armor_complete":55}', JSON.stringify(state.collection.claimedRewards));
+    });
+
+    // =====================================================
+    // ภาพตัวละคร
+    // =====================================================
+    await test("ภาพตัวละคร: โหลด SVG ได้ + ถอดอาวุธ/เกราะแล้วภาพเปลี่ยน", async () => {
+      await loadCharacterSprites("../");
+      const waitSprite = async (gender, slots) => {
+        for (let i = 0; i < 150; i++) {
+          const sprite = getCharacterSprite(gender, slots);
+          if (sprite) return sprite;
+          await sleep(20);
+        }
+        throw new Error(`สร้างภาพ ${gender} [${slots}] ไม่เสร็จ`);
+      };
+
+      const full = await waitSprite("male", ["weapon", "armor"]);
+      const bare = await waitSprite("male", []);
+      const female = await waitSprite("female", ["armor", "weapon"]);
+      assert(full.width > 0 && full.height > 0 && female.height === full.height, `ขนาด ${full.width}x${full.height}`);
+      assert(getCharacterSprite("male", ["armor", "weapon"]) === full, "ลำดับช่องต่างกันต้องได้รูปเดียวกัน (cache)");
+
+      // ดาบหายไป → จุดโปร่งใสต้องต่างกันพอสมควร
+      const alpha = (canvas) => canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+      const a = alpha(full);
+      const b = alpha(bare);
+      let changed = 0;
+      for (let i = 3; i < a.length; i += 4) if (a[i] !== b[i]) changed++;
+      assert(changed > 100, "ถอดอาวุธแล้วภาพต้องเปลี่ยน: " + changed + " จุด");
+    });
+
+    // =====================================================
     // แปลงเซฟเก่า
     // =====================================================
     await test("แปลงเซฟ v2 (เกมการ์ด) → v3", () => {
@@ -377,7 +487,8 @@
       assert(state.player.level === 1 && state.player.gold === 0, JSON.stringify(state.player));
       assert(JSON.stringify(state.inventory.materials) === '{"enhance_stone":3}', JSON.stringify(state.inventory.materials));
       assert(state.inventory.equipment.length === 1 && state.inventory.equipment[0].plus === MAX_PLUS, "equipment");
-      assert(state.equipped.weapon === 1 && state.equipped.armor === null, JSON.stringify(state.equipped));
+      // uid 1 = ดาบเหล็ก (ต้อง Lv.3) แต่เลเวลถูกซ่อมเป็น 1 → ถูกถอด / armor ชี้ไปที่อาวุธ → ถอด
+      assert(state.equipped.weapon === null && state.equipped.armor === null, JSON.stringify(state.equipped));
       assert(state.mapId === START_MAP_ID, "mapId " + state.mapId);
     });
 
@@ -672,6 +783,15 @@
       assert(cards.length === getCollectionItems().length && doc.querySelectorAll(".collection-card.missing").length > 0, "การ์ด " + cards.length);
       doc.querySelector('.collection-card[data-action="inspect"][data-item-id="wooden_sword"]').click();
       assert(doc.querySelector(".item-detail")?.textContent.includes("ของเริ่มต้น"), "รายละเอียดในสมุดสะสม");
+      doc.querySelector('[data-action="collection-tab"][data-tab="rewards"]').click();
+      assert(doc.querySelectorAll(".reward-row").length === COLLECTION_REWARDS.length, "แท็บรางวัล");
+      doc.getElementById("panel-close").click();
+
+      // 🔒 อุปกรณ์ที่เลเวลไม่ถึง: ปุ่มสวมถูกล็อก
+      game.state.inventory.equipment.push({ uid: 900, itemId: "knight_armor", plus: 0 });
+      doc.querySelector('[data-panel="inventory"]').click();
+      doc.querySelector('[data-action="inventory-tab"][data-tab="armor"]').click();
+      assert(!doc.querySelector('[data-action="equip"][data-uid="900"]') && doc.getElementById("panel-body").textContent.includes("🔒 Lv.12"), "ปุ่มสวมต้องล็อก");
       doc.getElementById("panel-close").click();
       frame2.remove();
     });

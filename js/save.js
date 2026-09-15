@@ -9,6 +9,7 @@
 import { state, replaceState, createNewState, CONFIG } from "./state.js";
 import { ITEMS, EQUIPMENT_SLOTS, resolveItemId } from "./systems/itemDatabase.js";
 import { MAPS } from "../data/maps.js";
+import { COLLECTION_REWARDS } from "../data/collectionRewards.js";
 import { MAX_PLUS } from "./systems/upgrade.js";
 
 const SAVE_KEY = "herofarm_save";
@@ -113,7 +114,9 @@ function sanitize(save) {
   for (const slot of Object.keys(EQUIPMENT_SLOTS)) {
     const uid = save.equipped?.[slot];
     const item = equipment.find((other) => other.uid === uid);
-    equipped[slot] = item && ITEMS[item.itemId].slot === slot ? uid : null;
+    // + เลเวลต้องถึง levelRequirement (ของที่เลเวลไม่ถึงถูกถอด แต่ยังอยู่ในกระเป๋า)
+    const usable = item && ITEMS[item.itemId].slot === slot && player.level >= ITEMS[item.itemId].levelRequirement;
+    equipped[slot] = usable ? uid : null;
   }
 
   // สมุดสะสม: เก็บเฉพาะไอเทมที่มีจริง
@@ -127,6 +130,13 @@ function sanitize(save) {
     discovered[itemId] ??= Date.now();
   }
 
+  // รางวัลสมุดสะสมที่รับแล้ว: เก็บเฉพาะรางวัลที่มีอยู่จริง
+  const claimedRewards = {};
+  for (const reward of COLLECTION_REWARDS) {
+    const time = save.collection?.claimedRewards?.[reward.id];
+    if (time !== undefined) claimedRewards[reward.id] = toNumber(time, Date.now());
+  }
+
   const maxUid = equipment.reduce((max, item) => Math.max(max, item.uid), 0);
 
   return {
@@ -137,7 +147,7 @@ function sanitize(save) {
     equipped,
     // แผนที่ที่ไม่มีในเกมแล้ว (หรือเซฟเก่าที่ยังไม่มีค่านี้) → กลับแผนที่เริ่มต้น
     mapId: Object.hasOwn(MAPS, save.mapId) ? save.mapId : fresh.mapId,
-    collection: { discovered },
+    collection: { discovered, claimedRewards },
     nextUid: Math.max(maxUid + 1, Math.floor(toNumber(save.nextUid, 1, 1))),
     lastSavedAt: save.lastSavedAt ?? null
   };

@@ -50,7 +50,9 @@ export const EQUIPMENT_SLOTS = {
 // ใส่เฉพาะค่าที่ต่างจากค่าเริ่มต้น — ค่าที่ไม่ใส่ itemDatabase.js เติมให้:
 //   description "" · maxStack ตามประเภท · sellPrice 0 · buyPrice 0 (ร้านไม่ขาย)
 //   levelRequirement 1 · isSellable true · isTradable true
-// tags: ป้ายเพิ่มเติม เช่น ["legacy"] = ของเก่าที่หาไม่ได้แล้ว (ไม่นับในสมุดสะสม)
+// tags: ป้ายเพิ่มเติม — ไอเทมที่มีป้ายเหล่านี้ไม่นับในสมุดสะสม
+//   ["legacy"] = ของเก่าที่หาไม่ได้แล้ว
+//   ["reward"] = ของรางวัลจากสมุดสะสม (ดู data/collectionRewards.js)
 // =====================================================
 export const ITEM_DEFINITIONS = [
   // ===== อาวุธ (weapon) =====
@@ -239,6 +241,44 @@ export const ITEM_DEFINITIONS = [
     description: "เหรียญเก่าแก่จากอาณาจักรที่สาบสูญ นักสะสมต่างตามหา",
     sellPrice: 50,
     collectible: { collectionId: "treasures", kind: "relic" }
+  },
+
+  // ----- ของรางวัลจากสมุดสะสม (ป้าย "reward") -----
+  {
+    id: "weapon_collector_badge", name: "เหรียญตรานักสะสมอาวุธ", type: "collectible", rarity: "rare", icon: "🎖️",
+    description: "มอบให้ผู้ที่สะสมอาวุธครบทุกชนิด",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "badge" }
+  },
+  {
+    id: "armor_collector_badge", name: "เหรียญตรานักสะสมเกราะ", type: "collectible", rarity: "rare", icon: "🎗️",
+    description: "มอบให้ผู้ที่สะสมเกราะครบทุกชนิด",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "badge" }
+  },
+  {
+    id: "potion_collector_badge", name: "เหรียญตรานักปรุงยา", type: "collectible", rarity: "uncommon", icon: "🏵️",
+    description: "มอบให้ผู้ที่สะสมของใช้ครบทุกชนิด",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "badge" }
+  },
+  {
+    id: "material_collector_badge", name: "เหรียญตรานักสะสมวัตถุดิบ", type: "collectible", rarity: "rare", icon: "📿",
+    description: "มอบให้ผู้ที่สะสมวัตถุดิบครบทุกชนิด",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "badge" }
+  },
+  {
+    id: "treasure_collector_badge", name: "เหรียญตรานักล่าของหายาก", type: "collectible", rarity: "epic", icon: "🔰",
+    description: "มอบให้ผู้ที่สะสมของสะสมครบทุกชิ้น",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "badge" }
+  },
+  {
+    id: "legend_collector_trophy", name: "ถ้วยรางวัลนักสะสมตำนาน", type: "collectible", rarity: "legendary", icon: "🏆",
+    description: "ถ้วยรางวัลสำหรับผู้ที่สะสมไอเทมครบทุกชิ้นในสมุดสะสม",
+    isSellable: false, isTradable: false, tags: ["reward"],
+    collectible: { collectionId: "collection_rewards", kind: "trophy" }
   }
 ];
 

@@ -9,6 +9,7 @@
 import { ITEMS, RARITIES } from "../systems/itemDatabase.js";
 import { MAPS } from "../../data/maps.js";
 import { WORLD_RULES } from "./world.js";
+import { getCharacterSprite, SPRITE_LAYOUT } from "./characterSprites.js";
 
 const TILE = 80;
 
@@ -52,7 +53,8 @@ export function createRenderer(canvas) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function draw(world, profile) {
+  // equipped = state.equipped → ภาพตัวละครแสดงอาวุธ/เกราะตามที่สวมจริง
+  function draw(world, profile, equipped = null) {
     if (view.width === 0) resize();
 
     const camera = getCamera(world, view);
@@ -71,7 +73,7 @@ export function createRenderer(canvas) {
     const sprites = [
       ...world.obstacles.map((o) => ({ y: o.y, draw: () => drawObstacle(ctx, o, theme) })),
       ...world.monsters.filter((m) => !m.dead).map((m) => ({ y: m.y, draw: () => drawMonster(ctx, m, world.time) })),
-      { y: world.player.y, draw: () => drawPlayer(ctx, world.player, profile) }
+      { y: world.player.y, draw: () => drawPlayer(ctx, world.player, profile, equipped) }
     ].sort((a, b) => a.y - b.y);
     for (const sprite of sprites) sprite.draw();
 
@@ -299,7 +301,67 @@ function drawMonster(ctx, monster, time) {
 }
 
 // ---------- ผู้เล่น ----------
-function drawPlayer(ctx, player, profile) {
+// ใช้ภาพจาก assets/characters/*.svg (แสดงอาวุธ/เกราะตามที่สวมจริง)
+// ระหว่างภาพยังโหลดไม่เสร็จ หรือโหลดไม่ได้ → วาดตัวละครแบบรูปทรงง่ายแทน (drawPlayerShapes)
+const PLAYER_SPRITE_HEIGHT = 76;   // ความสูงตัวละครบนแผนที่ (px)
+const lastSprites = {};            // รูปล่าสุดของแต่ละเพศ ใช้ระหว่างรอรูปชุดใหม่ กันภาพกะพริบตอนเปลี่ยนอุปกรณ์
+let facingLeft = false;            // เดินขึ้น/ลงตรงๆ ให้หันทางเดิมต่อ
+
+function drawPlayer(ctx, player, profile, equipped) {
+  const gender = profile?.gender === "female" ? "female" : "male";
+  const equippedSlots = Object.keys(equipped ?? {}).filter((slot) => equipped[slot] !== null);
+  const sprite = getCharacterSprite(gender, equippedSlots) ?? lastSprites[gender];
+  if (!sprite) {
+    drawPlayerShapes(ctx, player, profile);
+    return;
+  }
+  lastSprites[gender] = sprite;
+
+  if (player.facing.x < -0.1) facingLeft = true;
+  if (player.facing.x > 0.1) facingLeft = false;
+
+  const unit = PLAYER_SPRITE_HEIGHT / (SPRITE_LAYOUT.feetY - SPRITE_LAYOUT.topY);
+  const groundY = player.y + player.radius * 0.8;
+  const bob = player.moving ? Math.abs(Math.sin(player.walkTime * 12)) * 3 : 0;
+  const lunge = player.swingTimer > 0 ? 1.06 : 1;
+
+  ctx.save();
+  if (player.dead) ctx.globalAlpha = 0.35;
+  drawShadow(ctx, player.x, player.y, player.radius);
+
+  ctx.translate(player.x, groundY - bob);
+  if (facingLeft) ctx.scale(-1, 1);
+  ctx.scale(lunge, lunge);
+  ctx.drawImage(
+    sprite,
+    -SPRITE_LAYOUT.centerX * unit, -SPRITE_LAYOUT.feetY * unit,
+    SPRITE_LAYOUT.width * unit, SPRITE_LAYOUT.height * unit
+  );
+  ctx.restore();
+
+  drawSwing(ctx, player, groundY - PLAYER_SPRITE_HEIGHT * 0.45);
+  if (profile) drawLabel(ctx, profile.name, player.x, groundY + 13, "#fff8ea", 12);
+}
+
+// รอยฟันเป็นส่วนโค้งด้านหน้าตัวละคร
+function drawSwing(ctx, player, centerY) {
+  if (player.swingTimer <= 0) return;
+
+  const progress = 1 - player.swingTimer / WORLD_RULES.swingDuration;
+  const start = Math.atan2(player.facing.y, player.facing.x) - WORLD_RULES.attackArc / 2;
+
+  ctx.save();
+  ctx.fillStyle = "#ffffff66";
+  ctx.beginPath();
+  ctx.moveTo(player.x, centerY);
+  ctx.arc(player.x, centerY, 58, start, start + WORLD_RULES.attackArc * progress);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// ตัวละครแบบรูปทรงง่าย (สำรอง ระหว่างภาพ SVG ยังไม่พร้อม)
+function drawPlayerShapes(ctx, player, profile) {
   const look = PLAYER_LOOK[profile?.gender] ?? PLAYER_LOOK.male;
   const { x, facing } = player;
   const bob = player.moving ? Math.abs(Math.sin(player.walkTime * 12)) * 3 : 0;

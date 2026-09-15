@@ -242,9 +242,14 @@ export function isStackable(itemOrId) {
 
 // ---------- สมุดสะสม (Item Collection) ----------
 // ไอเทมที่นับในสมุดสะสม — ไม่รวมไอเทมป้าย "legacy" (ของเก่าที่หาไม่ได้แล้ว)
+// และ "reward" (ของรางวัลจากสมุดสะสมเอง ถ้านับด้วยจะสะสมครบไม่ได้)
 // type ไม่ระบุ = ทุกประเภท
+const NOT_IN_COLLECTION_TAGS = ["legacy", "reward"];
+
 export function getCollectionItems(type = null) {
-  return ITEM_LIST.filter((item) => !item.tags.includes("legacy") && (type === null || item.type === type));
+  return ITEM_LIST.filter((item) =>
+    !item.tags.some((tag) => NOT_IN_COLLECTION_TAGS.includes(tag)) && (type === null || item.type === type)
+  );
 }
 
 // discoveredIds = ID ไอเทมที่ผู้เล่นเคยได้ (Array หรือ Set)

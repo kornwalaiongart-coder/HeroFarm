@@ -59,12 +59,21 @@ export function isEquipped(uid) {
   return Object.values(state.equipped).includes(uid);
 }
 
+// สวมได้เฉพาะเมื่อเลเวลผู้เล่นถึง levelRequirement ของไอเทม
+// คืน { ok: true } หรือ { ok: false, reason: "notFound" | "level", required }
 export function equip(uid) {
   const item = findEquipment(uid);
-  if (!item) return false;
+  if (!item) return { ok: false, reason: "notFound" };
 
-  state.equipped[ITEMS[item.itemId].slot] = uid;
-  return true;
+  const def = ITEMS[item.itemId];
+  if (!canEquip(item.itemId)) return { ok: false, reason: "level", required: def.levelRequirement };
+
+  state.equipped[def.slot] = uid;
+  return { ok: true };
+}
+
+export function canEquip(itemId) {
+  return state.player.level >= ITEMS[itemId].levelRequirement;
 }
 
 export function unequip(slot) {

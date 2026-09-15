@@ -10,10 +10,11 @@
 import { state } from "../state.js";
 import { ITEMS, RARITIES, ITEM_TYPES, EQUIPMENT_SLOTS, getCollectionItems } from "../systems/itemDatabase.js";
 import {
-  countMaterial, findEquipment, isEquipped, equip, unequip,
+  countMaterial, findEquipment, isEquipped, equip, unequip, canEquip,
   sellMaterial, sellEquipment, getEquipmentSellPrice
 } from "../systems/inventory.js";
 import { getCollectionSummary, getItemSources, isDiscovered } from "../systems/collection.js";
+import { getRewardStatuses, claimReward, countClaimableRewards } from "../systems/collectionRewards.js";
 import { MAX_PLUS, getUpgradeCost, upgradeEquipment } from "../systems/upgrade.js";
 import { getPlayerStats, getEquipmentStats } from "../systems/stats.js";
 import { markDirty, saveGame, resetGame, getSaveStatusText } from "../save.js";
@@ -87,13 +88,25 @@ export function initPanels(options) {
 // =====================================================
 // ปุ่มต่างๆ ในแผง
 // =====================================================
-function handleAction({ action, uid, slot, itemId, qty, tab }) {
+function handleAction({ action, uid, slot, itemId, qty, tab, rewardId }) {
   const itemUid = uid === undefined ? null : Number(uid);
 
   switch (action) {
-    case "equip":
-      equip(itemUid);
+    case "equip": {
+      const result = equip(itemUid);
+      if (result.reason === "level") showToast(`🔒 ต้อง Lv.${result.required} ถึงจะสวมได้ (ตอนนี้ Lv.${state.player.level})`);
       break;
+    }
+
+    case "claim-reward": {
+      const result = claimReward(rewardId);
+      if (result.ok) {
+        showToast("🏆 รับรางวัล " + result.reward.name + ": " + rewardText(result.reward));
+        saveGame();
+      }
+      refreshCollectionAlert();
+      break;
+    }
 
     case "unequip":
       unequip(slot);
@@ -277,17 +290,21 @@ function renderInventory() {
 function equipmentRow(item) {
   const def = ITEMS[item.itemId];
   const equipped = isEquipped(item.uid);
+  const locked = !canEquip(item.itemId);
+
+  let equipButton = `<button class="mini-button primary" data-action="equip" data-uid="${item.uid}">สวม</button>`;
+  if (equipped) equipButton = `<button class="mini-button" data-action="unequip" data-slot="${def.slot}">ถอด</button>`;
+  else if (locked) equipButton = `<button class="mini-button" disabled>🔒 Lv.${def.levelRequirement}</button>`;
+
   return `
       <div class="item-row">
         <span class="item-icon">${def.icon}</span>
         <div class="item-info" data-action="inspect" data-item-id="${def.id}" data-uid="${item.uid}">
           <p class="item-name">${itemName(item)} ${equipped ? '<span class="badge">สวมอยู่</span>' : ""}</p>
-          <p class="item-meta">${EQUIPMENT_SLOTS[def.slot] ?? ITEM_TYPES[def.type].name} · ${statText(item)}</p>
+          <p class="item-meta">${[EQUIPMENT_SLOTS[def.slot] ?? ITEM_TYPES[def.type].name, statText(item), levelText(def)].filter(Boolean).join(" · ")}</p>
         </div>
         <div class="item-actions">
-          ${equipped
-            ? `<button class="mini-button" data-action="unequip" data-slot="${def.slot}">ถอด</button>`
-            : `<button class="mini-button primary" data-action="equip" data-uid="${item.uid}">สวม</button>`}
+          ${equipButton}
           <button class="mini-button" data-action="select-upgrade" data-uid="${item.uid}">ตีบวก</button>
           ${equipped ? "" : `<button class="mini-button" data-action="sell-equipment" data-uid="${item.uid}">ขาย ${getEquipmentSellPrice(item)}🪙</button>`}
         </div>
@@ -301,7 +318,7 @@ function stackableRow(itemId, qty) {
   const full = qty >= def.maxStack;
   const meta = [
     usable ? def.description : "",
-    usable && def.levelRequirement > 1 ? `ต้อง Lv.${def.levelRequirement}` : "",
+    usable ? levelText(def) : "",
     def.isSellable ? `ขายชิ้นละ ${def.sellPrice} 🪙` : "ขายไม่ได้"
   ].filter(Boolean).join(" · ");
 
@@ -350,6 +367,7 @@ function sourceText(itemId, detailed = false) {
 
   const list = sources.map((source) => {
     if (source.kind === "starter") return "🎁 ของเริ่มต้น";
+    if (source.kind === "reward") return `🏆 รางวัลสมุดสะสม (${source.name})`;
     return detailed
       ? `${source.icon} ${source.name} (${source.maps.join(", ")}) ${formatChance(source.chance)}`
       : `${source.icon} ${source.name}`;
@@ -400,7 +418,7 @@ function renderItemDetail() {
 
   lines.push([
     `${ITEM_TYPES[def.type].icon} ${ITEM_TYPES[def.type].name}`,
-    def.levelRequirement > 1 ? `ต้อง Lv.${def.levelRequirement}` : "",
+    levelText(def),
     def.maxStack > 1 ? `ซ้อนได้ ${def.maxStack}` : "",
     def.isSellable ? `ขาย ${def.sellPrice} 🪙` : "ขายไม่ได้",
     def.isTradable ? "" : "เทรดไม่ได้"
@@ -426,30 +444,87 @@ function renderItemDetail() {
 // ---------- สมุดสะสม ----------
 function renderCollection() {
   const summary = getCollectionSummary();
+  const rewards = getRewardStatuses();
+  const claimable = rewards.filter((reward) => reward.complete && !reward.claimed).length;
+  const claimed = rewards.filter((reward) => reward.claimed).length;
   const percent = summary.total > 0 ? Math.floor((summary.found / summary.total) * 100) : 0;
-  if (collectionTab !== "all" && !summary.rows.some((row) => row.type === collectionTab)) collectionTab = "all";
+
+  const validTabs = ["all", "rewards", ...summary.rows.map((row) => row.type)];
+  if (!validTabs.includes(collectionTab)) collectionTab = "all";
 
   const tabs = [
     tabButton("collection-tab", "all", `ทั้งหมด ${summary.found}/${summary.total}`, collectionTab),
-    ...summary.rows.map((row) => tabButton("collection-tab", row.type, `${row.icon} ${row.name} ${row.found}/${row.total}`, collectionTab))
+    ...summary.rows.map((row) => tabButton("collection-tab", row.type, `${row.icon} ${row.name} ${row.found}/${row.total}`, collectionTab)),
+    tabButton("collection-tab", "rewards", `🏆 รางวัล ${claimed}/${rewards.length}${claimable > 0 ? " ❗" : ""}`, collectionTab)
   ].join("");
 
-  const sections = summary.rows
-    .filter((row) => collectionTab === "all" || row.type === collectionTab)
-    .map((row) => `
-      <h4 class="panel-section">${row.icon} ${row.name} ${row.found} / ${row.total}</h4>
-      <div class="collection-grid">${getCollectionItems(row.type).map(collectionCard).join("")}</div>`)
-    .join("");
+  const content = collectionTab === "rewards"
+    ? `<h4 class="panel-section">🏆 รางวัลสะสมครบหมวด</h4>${rewards.map(rewardRow).join("")}`
+    : summary.rows
+      .filter((row) => collectionTab === "all" || row.type === collectionTab)
+      .map((row) => `
+        <h4 class="panel-section">${row.icon} ${row.name} ${row.found} / ${row.total}</h4>
+        <div class="collection-grid">${getCollectionItems(row.type).map(collectionCard).join("")}</div>`)
+      .join("");
+
+  const claimShortcut = claimable > 0 && collectionTab !== "rewards"
+    ? `<button class="mini-button primary" data-action="collection-tab" data-tab="rewards">🏆 มีรางวัลให้รับ ${claimable} รายการ</button>`
+    : "";
 
   return `
     <div class="collection-summary">
       <p class="item-name">ค้นพบแล้ว ${summary.found} / ${summary.total} ชิ้น (${percent}%)</p>
       <div class="progress"><div class="progress-fill" style="width:${percent}%"></div></div>
+      ${claimShortcut}
     </div>
     <div class="tab-row">${tabs}</div>
     ${renderItemDetail()}
-    ${sections}
-    <p class="hint-text">❓ = ยังไม่เคยได้ · แตะไอเทมที่ค้นพบแล้วเพื่อดูรายละเอียด</p>`;
+    ${content}
+    <p class="hint-text">${collectionTab === "rewards"
+      ? "สะสมไอเทมในหมวดให้ครบ แล้วกดรับรางวัลที่นี่"
+      : "❓ = ยังไม่เคยได้ · แตะไอเทมที่ค้นพบแล้วเพื่อดูรายละเอียด"}</p>`;
+}
+
+// ---------- รางวัลสมุดสะสม ----------
+function rewardText(reward) {
+  return [
+    reward.gold ? `🪙 ${reward.gold.toLocaleString("en-US")}` : "",
+    reward.gem ? `💎 ${reward.gem}` : "",
+    reward.itemId ? `${ITEMS[reward.itemId].icon} ${ITEMS[reward.itemId].name}` : ""
+  ].filter(Boolean).join(" · ");
+}
+
+function rewardRow(reward) {
+  const category = reward.type === null ? { icon: "📖", name: "ทุกหมวด" } : ITEM_TYPES[reward.type];
+
+  let button = `<button class="mini-button" disabled>${reward.found}/${reward.total}</button>`;
+  if (reward.claimed) button = '<button class="mini-button" disabled>รับแล้ว ✓</button>';
+  else if (reward.complete) button = `<button class="mini-button primary" data-action="claim-reward" data-reward-id="${reward.id}">รับรางวัล</button>`;
+
+  return `
+      <div class="item-row reward-row ${reward.claimed ? "claimed" : ""}">
+        <span class="item-icon">${reward.itemId ? ITEMS[reward.itemId].icon : "🏆"}</span>
+        <div class="item-info">
+          <p class="item-name">${reward.name}</p>
+          <p class="item-meta">สะสม ${category.icon} ${category.name} ให้ครบ (${reward.found}/${reward.total})</p>
+          <p class="item-meta">รางวัล: ${rewardText(reward)}</p>
+        </div>
+        <div class="item-actions">${button}</div>
+      </div>`;
+}
+
+// จุดแดงที่ปุ่ม 📖 เมื่อมีรางวัลที่สะสมครบแล้วแต่ยังไม่กดรับ
+export function refreshCollectionAlert() {
+  document.querySelector('.menu-button[data-panel="collection"]')
+    ?.classList.toggle("has-alert", countClaimableRewards() > 0);
+}
+
+// "ต้อง Lv.X" — ถ้าเลเวลยังไม่ถึง แสดงเป็นตัวแดงพร้อมแม่กุญแจ
+function levelText(def) {
+  if (def.levelRequirement <= 1) return "";
+  return state.player.level >= def.levelRequirement
+    ? `ต้อง Lv.${def.levelRequirement}`
+    : `<span class="locked-text">🔒 ต้อง Lv.${def.levelRequirement}</span>`;
 }
 
 function collectionCard(def) {
