@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hero Farm — Characters</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; background: #1c1333; color: #fff8ea; }
+    h1 { margin: 0 0 6px; font-size: 22px; }
+    .status.ok { color: #6fcf97; }
+    .status.error { color: #ff5c6c; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .controls label { background: #2d1b4e; padding: 4px 12px; border-radius: 999px; cursor: pointer; user-select: none; }
+    .controls label.empty { opacity: 0.6; }
+    .stage { display: flex; flex-wrap: wrap; gap: 16px; }
+    .card {
+      width: min(340px, 100%);
+      border-radius: 16px;
+      padding: 8px;
+      /* ลายตารางหมากรุก = พื้นหลังโปร่งใส */
+      background: repeating-conic-gradient(#e9e2d4 0 25%, #f7f2e8 0 50%) 0 0 / 24px 24px;
+    }
+    .card svg { display: block; width: 100%; height: auto; }
+    pre { white-space: pre-wrap; background: #3a1020; color: #ffb3b3; padding: 10px; border-radius: 8px; }
+  </style>
+  <script>
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.__errors.push(String(event.reason)));
+  </script>
+</head>
+<body>
+  <!--
+    หน้าดูตัวละคร — เปิดผ่าน Live Server: /tests/characters.html
+    ติ๊กเปิด/ปิดแต่ละช่องอุปกรณ์ เพื่อเช็กว่าแยกชั้นกันจริง (พร้อมเปลี่ยนอุปกรณ์ในอนาคต)
+  -->
+  <h1>🧑‍🌾 HeroFarm Characters</h1>
+  <p class="status" id="status">กำลังโหลด…</p>
+  <div class="controls" id="controls"></div>
+  <div class="stage">
+    <div class="card" id="hero-male"></div>
+    <div class="card" id="hero-female"></div>
+  </div>
+  <pre id="errors" hidden></pre>
+
+  <script type="module">
+    const SLOTS = [
+      ["hair", "💇 ผม"],
+      ["head", "⛑️ หมวก (ว่าง)"],
+      ["costume", "👕 ชุด"],
+      ["armor", "🦺 เกราะ + เข็มขัด"],
+      ["gloves", "🧤 ถุงมือ"],
+      ["boots", "🥾 รองเท้า"],
+      ["weapon", "🗡️ อาวุธ"],
+      ["accessory", "🧣 ผ้าคลุม"]
+    ];
+
+    const $ = (id) => document.getElementById(id);
+
+    async function loadSvg(targetId, file) {
+      const response = await fetch(file);
+      if (!response.ok) throw new Error(`โหลด ${file} ไม่ได้ (${response.status})`);
+      $(targetId).innerHTML = await response.text();
+    }
+
+    try {
+      await Promise.all([
+        loadSvg("hero-male", "../assets/characters/hero_male.svg"),
+        loadSvg("hero-female", "../assets/characters/hero_female.svg")
+      ]);
+
+      for (const [slot, label] of SLOTS) {
+        const layers = document.querySelectorAll(`[data-slot="${slot}"]`);
+        const empty = [...layers].every((layer) => layer.childElementCount === 0);
+        const control = document.createElement("label");
+        control.className = empty ? "empty" : "";
+        control.innerHTML = `<input type="checkbox" checked data-toggle="${slot}"> ${label}`;
+        control.querySelector("input").addEventListener("change", (event) => {
+          layers.forEach((layer) => layer.style.display = event.target.checked ? "" : "none");
+        });
+        $("controls").append(control);
+      }
+
+      $("status").textContent = "✅ โหลดตัวละครสำเร็จ — ติ๊กเปิด/ปิดแต่ละช่องอุปกรณ์เพื่อดูว่าแยกชั้นกัน";
+      $("status").className = "status ok";
+      document.title = "CHARACTERS OK";
+      window.__ready = true;
+    } catch (error) {
+      $("status").textContent = "❌ " + error.message;
+      $("status").className = "status error";
+      $("errors").textContent = window.__errors.join("\n") || error.stack;
+      $("errors").hidden = false;
+      document.title = "CHARACTERS ERROR";
+    }
+  </script>
+</body>
+</html>

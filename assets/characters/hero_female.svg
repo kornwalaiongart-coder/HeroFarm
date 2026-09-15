@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 820" width="400" height="820">
+  <!--
+    HeroFarm — Female Hero (original design)
+    Mirrored pose of the male hero so the pair reads well side by side.
+    Layer order back → front. Each replaceable slot is a <g data-slot="...">:
+      accessory (back)  → cape
+      hair (back)       → ponytail
+      base              → skin / face (not replaceable)
+      costume           → shirt + trousers
+      boots
+      armor             → light leather corset armor, shoulder pad, belt, pouches, hip guards
+      weapon            → short sword
+      gloves
+      accessory (front) → cape over shoulder + HeroFarm emblem clasp
+      hair (front)      → bangs, side locks, hair tie
+      head              → head equipment (empty — for future helmets / hats)
+  -->
+  <defs>
+    <style>
+      .ln { stroke: #3a2826; stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+      .thin { stroke: #3a2826; stroke-width: 2; stroke-linecap: round; fill: none; }
+      .no { stroke: none; }
+    </style>
+    <!-- HeroFarm emblem: golden shield with a two-leaf sprout -->
+    <symbol id="hf-emblem-f" viewBox="-12 -12 24 24">
+      <path d="M0 -11 L10 -7 V1 Q10 8 0 12 Q-10 8 -10 1 V-7 Z" fill="#e0bb5c" stroke="#6b4a1f" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M0 -8 L7 -5 V1 Q7 6 0 9 Q-7 6 -7 1 V-5 Z" fill="#f2d48a"/>
+      <path d="M0 6 V-1" stroke="#3f6b2f" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M0 0 Q-6 -1 -6 -6 Q-1 -5 0 0 Z" fill="#5f9e45"/>
+      <path d="M0 -2 Q6 -3 6 -8 Q1 -7 0 -2 Z" fill="#7cc05a"/>
+    </symbol>
+  </defs>
+
+  <!-- ===== ACCESSORY (back): cape ===== -->
+  <g data-slot="accessory" data-layer="back">
+    <path class="ln" fill="#243a6b" d="M146 236 C128 300 114 410 108 500 L156 488 L204 506 L250 488 L294 500 C286 410 272 300 254 236 Z"/>
+    <path class="no" fill="#172a52" d="M154 300 C148 380 140 440 134 494 L156 488 C160 430 164 370 168 300 Z"/>
+    <path class="no" fill="#172a52" d="M246 300 C254 380 262 440 268 494 L250 488 C244 430 240 370 234 300 Z"/>
+    <path d="M108 500 L156 488 L204 506 L250 488 L294 500" fill="none" stroke="#d8b35a" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+
+  <!-- ===== HAIR (back): long practical ponytail ===== -->
+  <g data-slot="hair" data-layer="back">
+    <path class="ln" fill="#4f3024" d="M230 84 Q288 80 304 150 Q316 232 286 330 Q278 358 262 376 Q272 330 270 280 Q266 200 244 132 Q238 108 224 98 Z"/>
+    <path class="no" fill="#36201a" d="M252 130 Q272 200 274 280 Q276 322 270 352 Q286 300 288 240 Q288 170 266 122 Z"/>
+    <path class="thin" d="M262 150 Q282 220 280 300"/>
+    <path class="no" fill="#6e4636" d="M250 96 Q282 104 292 150 Q276 116 252 108 Z"/>
+  </g>
+
+  <!-- ===== BASE: neck, head, ears, face ===== -->
+  <g data-slot="base">
+    <path class="ln" fill="#f7dac4" d="M188 198 L188 238 Q200 245 212 238 L212 198 Z"/>
+    <path class="no" fill="#e9bda2" d="M189 210 Q200 224 211 210 L211 222 Q200 233 189 222 Z"/>
+    <path class="ln" fill="#f7dac4" d="M152 152 Q140 149 143 164 Q146 178 158 175 Z"/>
+    <path class="ln" fill="#f7dac4" d="M248 152 Q260 149 257 164 Q254 178 242 175 Z"/>
+    <path class="ln" fill="#f7dac4" d="M150 142 Q150 84 200 82 Q250 84 250 142 Q250 180 230 198 Q214 212 200 214 Q186 212 170 198 Q150 180 150 142 Z"/>
+    <path class="no" fill="#efc8ad" d="M230 198 Q243 184 248 162 Q248 184 234 200 Q219 212 204 213 Q220 208 230 198 Z"/>
+    <!-- eyes (blue-green) -->
+    <path class="no" fill="#ffffff" d="M161 146 Q177 135 193 143 L191 167 Q177 174 163 167 Z"/>
+    <ellipse cx="177" cy="156" rx="10" ry="13" fill="#3f9aa6"/>
+    <ellipse cx="177" cy="159" rx="5" ry="7" fill="#1f4f5a"/>
+    <circle cx="172" cy="150" r="3.5" fill="#ffffff"/>
+    <circle cx="181" cy="163" r="1.6" fill="#bfeff2"/>
+    <path d="M158 147 Q177 131 196 142" fill="none" stroke="#2e1c16" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M158 147 L151 141" fill="none" stroke="#2e1c16" stroke-width="3" stroke-linecap="round"/>
+    <path class="thin" d="M167 169 Q177 172 187 169"/>
+    <path class="no" fill="#ffffff" d="M239 146 Q223 135 207 143 L209 167 Q223 174 237 167 Z"/>
+    <ellipse cx="223" cy="156" rx="10" ry="13" fill="#3f9aa6"/>
+    <ellipse cx="223" cy="159" rx="5" ry="7" fill="#1f4f5a"/>
+    <circle cx="218" cy="150" r="3.5" fill="#ffffff"/>
+    <circle cx="227" cy="163" r="1.6" fill="#bfeff2"/>
+    <path d="M242 147 Q223 131 204 142" fill="none" stroke="#2e1c16" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M242 147 L249 141" fill="none" stroke="#2e1c16" stroke-width="3" stroke-linecap="round"/>
+    <path class="thin" d="M233 169 Q223 172 213 169"/>
+    <!-- brows, nose, mouth, blush -->
+    <path d="M163 130 Q175 121 189 122" fill="none" stroke="#5a3a2c" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M237 130 Q225 121 211 122" fill="none" stroke="#5a3a2c" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M200 171 L198 178 L202 179" fill="none" stroke="#cf9578" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M189 188 Q200 201 211 188 Q200 193 189 188 Z" fill="#c9605a" stroke="#7a3d35" stroke-width="2" stroke-linejoin="round"/>
+    <ellipse cx="165" cy="179" rx="9" ry="4" fill="#f2a0a0" opacity="0.5"/>
+    <ellipse cx="235" cy="179" rx="9" ry="4" fill="#f2a0a0" opacity="0.5"/>
+    <!-- bare hands + feet (visible when gloves / boots are unequipped) -->
+    <path class="ln" fill="#f7dac4" d="M126 394 H149 L149 409 Q151 440 144 448 Q135 454 127 444 Q121 428 126 409 Z"/>
+    <path class="ln" fill="#f7dac4" d="M258 394 H283 L283 409 Q288 430 282 446 Q270 455 257 446 Q251 428 257 409 Z"/>
+    <path class="ln" fill="#f7dac4" d="M162 708 H190 Q200 736 198 754 Q196 764 184 764 H166 Q152 764 152 752 Q152 732 162 708 Z"/>
+    <path class="ln" fill="#f7dac4" d="M238 708 H210 Q200 736 202 754 Q204 764 216 764 H234 Q248 764 248 752 Q248 732 238 708 Z"/>
+  </g>
+
+  <!-- ===== COSTUME: trousers, shirt, sleeves ===== -->
+  <g data-slot="costume">
+    <path class="ln" fill="#3a3446" d="M162 392 H238 L248 432 L244 552 L240 716 H208 L204 462 H196 L192 716 H160 L156 552 L152 432 Z"/>
+    <path class="no" fill="#2a2533" d="M204 464 L208 714 H217 L214 470 Z"/>
+    <path class="no" fill="#2a2533" d="M154 434 L158 552 L162 714 H170 L165 552 L162 434 Z"/>
+    <path class="thin" d="M166 552 Q175 558 184 552"/>
+    <path class="thin" d="M216 552 Q225 558 234 552"/>
+    <path class="ln" fill="#f3e9d2" d="M156 238 Q200 226 244 238 L254 296 L238 394 H162 L146 296 Z"/>
+    <path class="ln" fill="#e3d3b2" d="M180 234 L200 258 L220 234 L212 232 L200 248 L188 232 Z"/>
+    <path class="ln" fill="#f3e9d2" d="M154 246 Q136 254 130 288 L122 340 L126 396 H148 L150 342 L164 290 Z"/>
+    <path class="no" fill="#dccbaa" d="M131 290 L123 340 L127 394 H135 L133 342 L141 292 Z"/>
+    <path class="ln" fill="#f3e9d2" d="M246 246 Q264 254 270 288 L278 340 L282 396 H258 L254 342 L236 290 Z"/>
+    <path class="no" fill="#dccbaa" d="M269 290 L277 340 L281 394 H273 L269 342 L259 292 Z"/>
+  </g>
+
+  <!-- ===== BOOTS ===== -->
+  <g data-slot="boots">
+    <path class="ln" fill="#3b2a22" d="M248 758 H202 Q200 771 212 771 H238 Q250 771 248 758 Z"/>
+    <path class="ln" fill="#7a4e2e" d="M246 600 H204 L207 690 Q209 712 209 724 Q200 732 200 750 Q200 764 212 764 H238 Q250 764 250 750 Q250 732 242 724 Q242 712 244 690 Z"/>
+    <path class="no" fill="#5c3920" d="M216 626 H205 L207 690 Q209 710 209 724 Q202 729 201 738 H214 Z"/>
+    <path class="ln" fill="#8f5f38" d="M250 598 H200 Q198 611 202 624 H248 Q252 611 250 598 Z"/>
+    <path class="thin" d="M208 684 H243"/>
+    <path class="thin" d="M209 702 H242"/>
+
+    <path class="ln" fill="#3b2a22" d="M152 758 H198 Q200 771 188 771 H162 Q150 771 152 758 Z"/>
+    <path class="ln" fill="#7a4e2e" d="M154 600 H196 L193 690 Q191 712 191 724 Q200 732 200 750 Q200 764 188 764 H162 Q150 764 150 750 Q150 732 158 724 Q158 712 156 690 Z"/>
+    <path class="no" fill="#5c3920" d="M184 626 H195 L193 690 Q191 710 191 724 Q198 729 199 738 H186 Z"/>
+    <path class="ln" fill="#8f5f38" d="M150 598 H200 Q202 611 198 624 H152 Q148 611 150 598 Z"/>
+    <path class="thin" d="M157 684 H192"/>
+    <path class="thin" d="M158 702 H191"/>
+  </g>
+
+  <!-- ===== ARMOR: light leather corset, shoulder pad, belt, pouches, hip guards ===== -->
+  <g data-slot="armor">
+    <path class="ln" fill="#b07c4f" d="M152 262 Q172 252 188 258 L200 292 L212 258 Q228 252 248 262 L246 326 L236 392 H164 L154 326 Z"/>
+    <path class="no" fill="#8d5f38" d="M228 258 Q240 255 247 263 L245 326 L235 390 H220 L230 326 Z"/>
+    <path d="M195 300 L205 312 L195 324 L205 336 L195 348 L205 360 L195 372 L205 384" fill="none" stroke="#f3e9d2" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M156 326 Q200 338 244 326" fill="none" stroke="#8d5f38" stroke-width="2.5"/>
+    <!-- shoulder pad -->
+    <path class="ln" fill="#b07c4f" d="M226 240 Q254 228 274 248 L272 274 Q250 278 232 270 Z"/>
+    <path class="no" fill="#8d5f38" d="M254 238 Q266 241 273 250 L271 273 Q262 275 254 274 Z"/>
+    <circle cx="240" cy="254" r="2.6" fill="#d8b35a"/>
+    <circle cx="258" cy="252" r="2.6" fill="#d8b35a"/>
+    <!-- hip guards -->
+    <path class="ln" fill="#b07c4f" d="M160 402 L154 446 L182 452 L186 402 Z"/>
+    <path class="ln" fill="#b07c4f" d="M240 402 L246 446 L218 452 L214 402 Z"/>
+    <path class="no" fill="#8d5f38" d="M226 404 L239 404 L244 444 L230 448 Z"/>
+    <!-- belt + emblem buckle -->
+    <path class="ln" fill="#5a3a24" d="M156 380 H244 V402 H156 Z"/>
+    <use href="#hf-emblem-f" x="189" y="380" width="22" height="22"/>
+    <!-- pouches -->
+    <rect class="ln" x="161" y="396" width="23" height="27" rx="5" fill="#7a5233"/>
+    <path class="ln" fill="#936540" d="M161 402 Q172.5 411 184 402 V398 Q184 394 180 394 H165 Q161 394 161 398 Z"/>
+    <rect class="ln" x="219" y="398" width="20" height="24" rx="5" fill="#7a5233"/>
+    <path class="ln" fill="#936540" d="M219 404 Q229 411 239 404 V400 Q239 396 235 396 H223 Q219 396 219 400 Z"/>
+  </g>
+
+  <!-- ===== WEAPON: one-handed short sword ===== -->
+  <g data-slot="weapon">
+    <path class="ln" fill="#c9d2dc" d="M261 470 L281 467 L300 630 L302 650 L291 634 Z"/>
+    <path class="no" fill="#eef3f7" d="M262 470 L270 469 L293 632 L292 634 Z"/>
+    <path d="M272 476 L294 626" fill="none" stroke="#9aa6b3" stroke-width="2" stroke-linecap="round"/>
+    <path class="ln" fill="#4a3325" d="M262 402 L273 400 L278 462 L267 464 Z"/>
+    <path class="ln" fill="#8a8f98" d="M244 468 L294 458 L296 468 L246 478 Z"/>
+    <circle class="ln" cx="267" cy="397" r="6.5" fill="#d8b35a"/>
+  </g>
+
+  <!-- ===== GLOVES ===== -->
+  <g data-slot="gloves">
+    <!-- relaxed hand -->
+    <path class="ln" fill="#6e4a2e" d="M124 378 H150 L148 412 H126 Z"/>
+    <path class="no" fill="#533622" d="M126 380 H133 L133 410 H127 Z"/>
+    <path class="ln" fill="#6e4a2e" d="M126 409 Q121 428 127 444 Q135 454 144 448 Q151 440 149 409 Z"/>
+    <path class="ln" fill="#7d553a" d="M147 413 Q156 420 154 432 Q149 438 144 432 Z"/>
+    <path class="thin" d="M130 440 Q136 444 142 440"/>
+    <!-- sword hand: fist around the grip + thumb on top -->
+    <path class="ln" fill="#6e4a2e" d="M256 378 H282 L280 412 H258 Z"/>
+    <path class="no" fill="#533622" d="M273 380 H281 L280 410 H273 Z"/>
+    <path class="ln" fill="#6e4a2e" d="M257 409 Q251 428 257 446 Q270 455 282 446 Q288 430 283 409 Z"/>
+    <path class="thin" d="M257 422 H284"/>
+    <path class="thin" d="M256 434 H286"/>
+    <path class="ln" fill="#7d553a" d="M260 412 Q249 418 253 431 Q259 435 265 428 Z"/>
+  </g>
+
+  <!-- ===== ACCESSORY (front): cape over shoulder + emblem clasp ===== -->
+  <g data-slot="accessory" data-layer="front">
+    <path class="ln" fill="#243a6b" d="M188 238 Q152 228 132 246 L114 302 Q138 292 154 297 L170 262 Z"/>
+    <path class="no" fill="#172a52" d="M134 248 L116 300 Q126 296 134 296 L146 256 Z"/>
+    <path d="M114 302 Q138 292 154 297" fill="none" stroke="#d8b35a" stroke-width="3" stroke-linecap="round"/>
+    <use href="#hf-emblem-f" x="174" y="236" width="26" height="26"/>
+  </g>
+
+  <!-- ===== HAIR (front): bangs, side locks, hair tie ===== -->
+  <g data-slot="hair" data-layer="front">
+    <path class="ln" fill="#4f3024" d="M140 152 Q132 72 200 62 Q268 72 260 152 Q256 120 238 108 Q200 96 162 108 Q144 120 140 152 Z"/>
+    <path class="ln" fill="#4f3024" d="M150 136 Q148 84 200 74 Q246 80 256 132 L246 126 Q236 110 214 110 L222 142 Q204 118 190 113 L184 140 Q176 120 168 117 L160 144 Z"/>
+    <path class="ln" fill="#4f3024" d="M146 128 Q136 182 156 214 Q154 172 162 142 Z"/>
+    <path class="ln" fill="#4f3024" d="M254 128 Q264 182 244 214 Q246 172 238 142 Z"/>
+    <path class="no" fill="#36201a" d="M234 86 Q254 100 256 130 L246 126 Q242 104 228 90 Z"/>
+    <path class="no" fill="#6e4636" d="M170 86 Q198 74 226 84 Q200 84 178 96 Z"/>
+    <ellipse class="ln" cx="236" cy="90" rx="8" ry="11" fill="#243a6b" transform="rotate(-25 236 90)"/>
+    <path d="M232 84 L240 96" fill="none" stroke="#d8b35a" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== HEAD EQUIPMENT (empty slot for future helmets / hats) ===== -->
+  <g data-slot="head"></g>
+</svg>
