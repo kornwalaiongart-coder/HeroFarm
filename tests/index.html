@@ -22,7 +22,8 @@
     import { loadGame } from "../js/save.js";
     import { createCharacter, validateName } from "../js/systems/player.js";
     import { getPlayerStats, calcDamage } from "../js/systems/stats.js";
-    import { addMaterial, addEquipment, equip, sellEquipment, countMaterial, isEquipped } from "../js/systems/inventory.js";
+    import { addMaterial, addEquipment, equip, sellEquipment, sellMaterial, countMaterial, isEquipped } from "../js/systems/inventory.js";
+    import { useItem, pickHealingPotion } from "../js/systems/consumables.js";
     import { upgradeEquipment, getUpgradeCost, MAX_PLUS } from "../js/systems/upgrade.js";
     import { rollLoot } from "../js/systems/loot.js";
     import { createRng } from "../js/systems/rng.js";
@@ -207,6 +208,61 @@
       assert(progress.length === Object.keys(ITEM_TYPES).length, "ทุกประเภท");
       assert(byType.material.found === 2 && byType.material.total === getItemsByType("material").length, JSON.stringify(byType.material));
       assert(byType.weapon.found === 1 && byType.collectible.found === 0, "weapon / collectible");
+    });
+
+    // =====================================================
+    // ใช้ไอเทม (consumable)
+    // =====================================================
+    await test("ใช้ยา: ฟื้น HP + หักของ / ใช้ไม่ได้เมื่อเลือดเต็ม-ไม่มีของ-เลเวลไม่ถึง-หมดสติ", () => {
+      freshCharacter();
+      const world = createWorld(START_MAP_ID, createRng(1));
+      const maxHp = getPlayerStats().maxHp;
+
+      assert(useItem("small_hp_potion", world).reason === "notOwned", "notOwned");
+      addMaterial("small_hp_potion", 2);
+      assert(useItem("small_hp_potion", world).reason === "fullHp" && countMaterial("small_hp_potion") === 2, "เลือดเต็มต้องไม่เสียยา");
+
+      world.player.hp = maxHp - 30;
+      const result = useItem("small_hp_potion", world);
+      assert(result.ok && result.healed === 30 && world.player.hp === maxHp && countMaterial("small_hp_potion") === 1, JSON.stringify(result));
+
+      addMaterial("large_hp_potion", 1);
+      world.player.hp = 10;
+      assert(useItem("large_hp_potion", world).reason === "level", "levelRequirement");
+      assert(useItem("iron_sword", world).reason === "notConsumable" && useItem("slime_gel", world).reason === "notConsumable", "notConsumable");
+      world.player.dead = true;
+      assert(useItem("small_hp_potion", world).reason === "dead" && countMaterial("small_hp_potion") === 1, "dead");
+    });
+
+    await test("ใช้ยา EXP: ได้ EXP, เลเวลอัพแล้วเลือดเต็ม", () => {
+      freshCharacter();
+      const world = createWorld(START_MAP_ID, createRng(1));
+      world.player.hp = 5;
+      addMaterial("exp_potion", 1);
+      const result = useItem("exp_potion", world);
+      assert(result.ok && result.exp === 200 && result.levelsGained === 1 && state.player.level === 2, JSON.stringify(result));
+      assert(world.player.hp === getPlayerStats().maxHp && countMaterial("exp_potion") === 0, "hp เต็ม / ยาหมด");
+    });
+
+    await test("ปุ่มลัด Q เลือกยาที่พอดีที่สุด", () => {
+      freshCharacter();
+      assert(pickHealingPotion(40) === null, "ไม่มียา");
+      state.player.level = 5;
+      addMaterial("small_hp_potion", 1);
+      addMaterial("large_hp_potion", 1);
+      assert(pickHealingPotion(40).id === "small_hp_potion", "ขาดน้อย → ยาเล็ก");
+      assert(pickHealingPotion(200).id === "large_hp_potion", "ขาดมาก → ยาใหญ่");
+      assert(pickHealingPotion(999).id === "large_hp_potion", "ขาดเกินทุกขวด → ขวดที่ฟื้นมากสุด");
+      state.player.level = 1;
+      assert(pickHealingPotion(200).id === "small_hp_potion", "เลเวลไม่ถึงยาใหญ่ → ใช้ยาเล็ก");
+    });
+
+    await test("ของที่ isSellable: false ขายไม่ได้", () => {
+      freshCharacter();
+      addMaterial("slime_badge", 1);
+      assert(sellMaterial("slime_badge") === 0 && countMaterial("slime_badge") === 1, "slime_badge");
+      addMaterial("small_hp_potion", 3);
+      assert(sellMaterial("small_hp_potion", 3) === 9 && countMaterial("small_hp_potion") === 0, "ยาขายได้");
     });
 
     // =====================================================
@@ -521,6 +577,21 @@
       slimeHp = slime.hp;
       await click(0);
       assert(slime.hp < slimeHp, `คลิกซ้ายบนแผนที่ต้องตีโดน ${slimeHp} → ${slime.hp}`);
+
+      // ใช้ยา: ปุ่มลัด Q
+      game.state.inventory.materials.small_hp_potion = 2;
+      game.world.player.hp = 20;
+      frame2.contentWindow.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyQ" }));
+      assert(game.state.inventory.materials.small_hp_potion === 1 && game.world.player.hp === 70, `Q ใช้ยา hp=${game.world.player.hp}`);
+
+      // ใช้ยา: ปุ่ม "ใช้" ในกระเป๋า
+      game.world.player.hp = 20;
+      doc.querySelector('[data-panel="inventory"]').click();
+      const useButton = doc.querySelector('[data-action="use-item"][data-item-id="small_hp_potion"]');
+      assert(useButton, "ต้องมีปุ่มใช้ยาในกระเป๋า");
+      useButton.click();
+      assert(!("small_hp_potion" in game.state.inventory.materials) && game.world.player.hp === 70, `ปุ่มใช้ในกระเป๋า hp=${game.world.player.hp}`);
+      doc.getElementById("panel-close").click();
       frame2.remove();
     });
 

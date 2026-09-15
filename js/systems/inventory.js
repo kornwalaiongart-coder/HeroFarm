@@ -75,6 +75,7 @@ export function getEquipmentSellPrice(item) {
 
 // คืนทองที่ได้ (0 = ขายไม่ได้)
 export function sellMaterial(itemId, qty = 1) {
+  if (!ITEMS[itemId]?.isSellable) return 0;   // เช่น ของสะสมบางชิ้น ขายไม่ได้
   if (!removeMaterial(itemId, qty)) return 0;
 
   const gold = ITEMS[itemId].sellPrice * qty;

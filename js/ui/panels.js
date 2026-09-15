@@ -104,6 +104,10 @@ function handleAction({ action, uid, slot, itemId, qty }) {
       break;
     }
 
+    case "use-item":
+      hooks.onUseItem?.(itemId);
+      break;
+
     case "select-upgrade":
       selectedUid = itemUid;
       openPanel("equipment");
@@ -203,27 +207,48 @@ function renderInventory() {
       </div>`;
   }).join("");
 
-  const materialRows = Object.entries(state.inventory.materials).map(([itemId, qty]) => {
-    const def = ITEMS[itemId];
-    return `
-      <div class="item-row">
-        <span class="item-icon">${def.icon}</span>
-        <div class="item-info">
-          <p class="item-name"><span style="color:${RARITIES[def.rarity].color}">${def.name}</span> ×${qty}</p>
-          <p class="item-meta">ขายชิ้นละ ${def.sellPrice} 🪙</p>
-        </div>
-        <div class="item-actions">
-          <button class="mini-button" data-action="sell-material" data-item-id="${itemId}" data-qty="1">ขาย 1</button>
-          <button class="mini-button" data-action="sell-material" data-item-id="${itemId}" data-qty="all">ขายหมด</button>
-        </div>
-      </div>`;
-  }).join("");
+  // ของที่ซ้อนได้: แยก "ของใช้" (กดใช้ได้) ออกจาก "วัตถุดิบ / อื่นๆ"
+  const stackables = Object.entries(state.inventory.materials);
+  const consumableRows = stackables
+    .filter(([itemId]) => ITEMS[itemId].type === "consumable")
+    .map(([itemId, qty]) => stackableRow(itemId, qty)).join("");
+  const materialRows = stackables
+    .filter(([itemId]) => ITEMS[itemId].type !== "consumable")
+    .map(([itemId, qty]) => stackableRow(itemId, qty)).join("");
 
   return `
     <h4 class="panel-section">อุปกรณ์ (${equipment.length})</h4>
     ${equipmentRows || '<p class="empty-text">ยังไม่มีอุปกรณ์</p>'}
+    <h4 class="panel-section">ของใช้</h4>
+    ${consumableRows || '<p class="empty-text">ยังไม่มีของใช้ — มอนเตอร์มีโอกาสดรอปยา</p>'}
     <h4 class="panel-section">วัตถุดิบ</h4>
     ${materialRows || '<p class="empty-text">ตีมอนเตอร์เพื่อเก็บวัตถุดิบ</p>'}`;
+}
+
+// แถวของไอเทมที่ซ้อนได้ — ของใช้มีปุ่ม "ใช้" / ของที่ขายไม่ได้ไม่มีปุ่มขาย
+function stackableRow(itemId, qty) {
+  const def = ITEMS[itemId];
+  const usable = def.type === "consumable";
+  const meta = [
+    usable ? def.description : "",
+    usable && def.levelRequirement > 1 ? `ต้อง Lv.${def.levelRequirement}` : "",
+    def.isSellable ? `ขายชิ้นละ ${def.sellPrice} 🪙` : "ขายไม่ได้"
+  ].filter(Boolean).join(" · ");
+
+  return `
+      <div class="item-row">
+        <span class="item-icon">${def.icon}</span>
+        <div class="item-info">
+          <p class="item-name"><span style="color:${RARITIES[def.rarity].color}">${def.name}</span> ×${qty}</p>
+          <p class="item-meta">${meta}</p>
+        </div>
+        <div class="item-actions">
+          ${usable ? `<button class="mini-button primary" data-action="use-item" data-item-id="${itemId}">ใช้</button>` : ""}
+          ${def.isSellable ? `
+          <button class="mini-button" data-action="sell-material" data-item-id="${itemId}" data-qty="1">ขาย 1</button>
+          <button class="mini-button" data-action="sell-material" data-item-id="${itemId}" data-qty="all">ขายหมด</button>` : ""}
+        </div>
+      </div>`;
 }
 
 // ---------- อุปกรณ์ + ตีบวก ----------
@@ -292,7 +317,7 @@ function renderSettings() {
     <button class="big-button" data-action="save-now">💾 บันทึกตอนนี้</button>
     <button class="big-button danger" data-action="reset">🗑️ เริ่มเกมใหม่</button>
     <div class="help-box">
-      <p><b>คอม:</b> WASD / ลูกศร = เดิน · Space / J = โจมตี · Esc = ปิดเมนู</p>
-      <p><b>มือถือ:</b> จอยซ้ายล่าง = เดิน · ปุ่มดาบขวาล่าง = โจมตี (กดค้างได้)</p>
+      <p><b>คอม:</b> WASD / ลูกศร = เดิน · คลิกซ้าย / Space / J = โจมตี · Q = ใช้ยาฟื้น HP · Esc = ปิดเมนู</p>
+      <p><b>มือถือ:</b> จอยซ้ายล่าง = เดิน · แตะแผนที่ = โจมตี (กดค้างได้) · ใช้ยาจากกระเป๋า</p>
     </div>`;
 }

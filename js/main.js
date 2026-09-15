@@ -17,6 +17,8 @@ import { initInput, readInput, clearInput } from "./game/input.js";
 import { renderHud, showToast } from "./ui/hud.js";
 import { initPanels, isPanelOpen, renderPanel } from "./ui/panels.js";
 import { showCreateScreen } from "./ui/create.js";
+import { useItem, pickHealingPotion } from "./systems/consumables.js";
+import { getPlayerStats } from "./systems/stats.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,7 +40,8 @@ function start() {
 
   initPanels({
     onOpen: clearInput,
-    onReset: () => beginGame(false)
+    onReset: () => beginGame(false),
+    onUseItem: useConsumable
   });
 
   beginGame(hasSave);
@@ -50,6 +53,13 @@ function start() {
     if (document.visibilityState === "hidden") saveGame();
   });
   window.addEventListener("pagehide", saveGame);
+
+  // Q = ใช้ยาฟื้น HP ขวดที่พอดีที่สุด (ไม่ทำงานตอนพิมพ์ชื่อ / เปิดเมนูอยู่)
+  window.addEventListener("keydown", (event) => {
+    if (event.code !== "KeyQ" || event.repeat || !world || isPanelOpen()) return;
+    if (event.target instanceof HTMLInputElement) return;
+    quickHeal();
+  });
 }
 
 function beginGame(hasSave) {
@@ -135,6 +145,48 @@ function handleEvents(events) {
 
   // ย้ายแผนที่ทำหลังสุด — event อื่นในเฟรมนี้เป็นของแผนที่เดิม
   if (travelEvent) travel(travelEvent);
+}
+
+// ---------- ใช้ไอเทม (ยา) ----------
+const USE_FAIL_TEXT = {
+  notConsumable: "ไอเทมนี้ใช้ไม่ได้",
+  notOwned: "ไม่มีไอเทมนี้แล้ว",
+  level: "เลเวลยังไม่ถึง",
+  dead: "หมดสติอยู่ ใช้ไอเทมไม่ได้",
+  fullHp: "HP เต็มอยู่แล้ว",
+  noEffect: "ไอเทมนี้ยังใช้ไม่ได้"
+};
+
+// เรียกจากปุ่ม "ใช้" ในกระเป๋า และปุ่มลัด Q
+function useConsumable(itemId) {
+  if (!world) return;
+
+  const result = useItem(itemId, world);
+  if (!result.ok) {
+    const levelText = result.reason === "level" ? ` (ต้อง Lv.${result.item.levelRequirement})` : "";
+    showToast("⚠️ " + USE_FAIL_TEXT[result.reason] + levelText);
+    return;
+  }
+
+  const gains = [];
+  if (result.healed > 0) gains.push("+" + result.healed + " HP");
+  if (result.exp > 0) gains.push("+" + result.exp + " EXP");
+  showToast(result.item.icon + " ใช้ " + result.item.name + " " + gains.join(" "));
+  markDirty();
+
+  if (result.levelsGained > 0) {
+    showToast("🌟 เลเวลอัพ! ตอนนี้ Lv." + state.player.level);
+    saveGame();
+  }
+}
+
+function quickHeal() {
+  const potion = pickHealingPotion(getPlayerStats().maxHp - world.player.hp);
+  if (!potion) {
+    showToast("🧪 ไม่มียาฟื้น HP — มอนเตอร์มีโอกาสดรอปยา");
+    return;
+  }
+  useConsumable(potion.id);
 }
 
 // ให้หน้าทดสอบ (tests/) และ DevTools ส่องสถานะเกมได้ — ไม่มีผลกับการเล่น
