@@ -89,7 +89,7 @@ function sanitize(save) {
     const itemId = resolveItemId(savedId);
     const count = Math.floor(toNumber(qty, 0));
     if (itemId && !ITEMS[itemId].isEquippable && count > 0) {
-      materials[itemId] = (materials[itemId] ?? 0) + count;
+      materials[itemId] = Math.min(ITEMS[itemId].maxStack, (materials[itemId] ?? 0) + count);
     }
   }
 
@@ -116,6 +116,17 @@ function sanitize(save) {
     equipped[slot] = item && ITEMS[item.itemId].slot === slot ? uid : null;
   }
 
+  // สมุดสะสม: เก็บเฉพาะไอเทมที่มีจริง
+  // + ของที่อยู่ในกระเป๋าตอนนี้นับว่าค้นพบแล้ว (ผู้เล่นที่เล่นก่อนมีสมุดสะสม)
+  const discovered = {};
+  for (const [savedId, time] of Object.entries(save.collection?.discovered ?? {})) {
+    const itemId = resolveItemId(savedId);
+    if (itemId) discovered[itemId] = toNumber(time, Date.now());
+  }
+  for (const itemId of [...Object.keys(materials), ...equipment.map((item) => item.itemId)]) {
+    discovered[itemId] ??= Date.now();
+  }
+
   const maxUid = equipment.reduce((max, item) => Math.max(max, item.uid), 0);
 
   return {
@@ -126,6 +137,7 @@ function sanitize(save) {
     equipped,
     // แผนที่ที่ไม่มีในเกมแล้ว (หรือเซฟเก่าที่ยังไม่มีค่านี้) → กลับแผนที่เริ่มต้น
     mapId: Object.hasOwn(MAPS, save.mapId) ? save.mapId : fresh.mapId,
+    collection: { discovered },
     nextUid: Math.max(maxUid + 1, Math.floor(toNumber(save.nextUid, 1, 1))),
     lastSavedAt: save.lastSavedAt ?? null
   };

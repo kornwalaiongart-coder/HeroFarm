@@ -1,6 +1,6 @@
 // =====================================================
 // js/ui/panels.js
-// แผงเมนูที่เลื่อนขึ้นมาทับแผนที่: กระเป๋า / อุปกรณ์+ตีบวก / ตั้งค่า
+// แผงเมนูที่เลื่อนขึ้นมาทับแผนที่: กระเป๋า / อุปกรณ์+ตีบวก / สมุดสะสม / ตั้งค่า
 // ระหว่างเปิดแผง main.js จะหยุดเวลาในโลก (มอนเตอร์ไม่ตีระหว่างจัดของ)
 //
 // ปุ่มในแผงใช้ data-action แล้วดักคลิกที่ตัวแผงจุดเดียว
@@ -8,11 +8,12 @@
 // =====================================================
 
 import { state } from "../state.js";
-import { ITEMS, RARITIES, EQUIPMENT_SLOTS } from "../systems/itemDatabase.js";
+import { ITEMS, RARITIES, ITEM_TYPES, EQUIPMENT_SLOTS, getCollectionItems } from "../systems/itemDatabase.js";
 import {
   countMaterial, findEquipment, isEquipped, equip, unequip,
   sellMaterial, sellEquipment, getEquipmentSellPrice
 } from "../systems/inventory.js";
+import { getCollectionSummary, getItemSources, isDiscovered } from "../systems/collection.js";
 import { MAX_PLUS, getUpgradeCost, upgradeEquipment } from "../systems/upgrade.js";
 import { getPlayerStats, getEquipmentStats } from "../systems/stats.js";
 import { markDirty, saveGame, resetGame, getSaveStatusText } from "../save.js";
@@ -23,19 +24,27 @@ const $ = (id) => document.getElementById(id);
 const PANEL_TITLES = {
   inventory: "🎒 กระเป๋า",
   equipment: "🛡️ อุปกรณ์และตีบวก",
+  collection: "📖 สมุดสะสม",
   settings: "⚙️ ตั้งค่า"
 };
+
+// ประเภทที่มีแท็บในกระเป๋าเสมอ (ประเภทอื่นจะโผล่เมื่อมีของ)
+const MAIN_TYPES = ["weapon", "armor", "consumable", "material", "collectible"];
 
 let currentPanel = null;
 let selectedUid = null;
 let resetArmedUntil = 0;
 let hooks = {};
+let inventoryTab = "all";   // "all" หรือ type ของไอเทม
+let collectionTab = "all";
+let inspected = null;       // ไอเทมที่กำลังดูรายละเอียด { itemId, uid } (uid = null ถ้าไม่ใช่อุปกรณ์)
 
 export function isPanelOpen() {
   return currentPanel !== null;
 }
 
 export function openPanel(name) {
+  if (name !== currentPanel) inspected = null;
   currentPanel = name;
   hooks.onOpen?.();
   $("panel-overlay").hidden = false;
@@ -78,7 +87,7 @@ export function initPanels(options) {
 // =====================================================
 // ปุ่มต่างๆ ในแผง
 // =====================================================
-function handleAction({ action, uid, slot, itemId, qty }) {
+function handleAction({ action, uid, slot, itemId, qty, tab }) {
   const itemUid = uid === undefined ? null : Number(uid);
 
   switch (action) {
@@ -108,6 +117,31 @@ function handleAction({ action, uid, slot, itemId, qty }) {
       hooks.onUseItem?.(itemId);
       break;
 
+    // ---- ปุ่มที่เปลี่ยนแค่หน้าจอ ไม่ต้องเซฟ ----
+    case "inventory-tab":
+      inventoryTab = tab;
+      inspected = null;
+      renderPanel();
+      return;
+
+    case "collection-tab":
+      collectionTab = tab;
+      inspected = null;
+      renderPanel();
+      return;
+
+    case "inspect":
+      // แตะชิ้นเดิมซ้ำ = ปิดรายละเอียด
+      inspected = inspected?.itemId === itemId && inspected?.uid === itemUid ? null : { itemId, uid: itemUid };
+      renderPanel();
+      $("panel-body").scrollTop = 0;   // กล่องรายละเอียดอยู่ด้านบน
+      return;
+
+    case "close-inspect":
+      inspected = null;
+      renderPanel();
+      return;
+
     case "select-upgrade":
       selectedUid = itemUid;
       openPanel("equipment");
@@ -130,6 +164,7 @@ function handleAction({ action, uid, slot, itemId, qty }) {
       }
       resetArmedUntil = 0;
       selectedUid = null;
+      inspected = null;
       resetGame();
       closePanel();
       hooks.onReset?.();
@@ -162,7 +197,12 @@ export function renderPanel() {
   if (!currentPanel) return;
 
   $("panel-title").textContent = PANEL_TITLES[currentPanel];
-  const renderers = { inventory: renderInventory, equipment: renderEquipment, settings: renderSettings };
+  const renderers = {
+    inventory: renderInventory,
+    equipment: renderEquipment,
+    collection: renderCollection,
+    settings: renderSettings
+  };
   $("panel-body").innerHTML = renderers[currentPanel]();
 }
 
@@ -181,21 +221,68 @@ function statText(item) {
   ].filter(Boolean).join(" · ");
 }
 
+function tabButton(action, value, label, current) {
+  return `<button class="tab-chip ${value === current ? "active" : ""}" data-action="${action}" data-tab="${value}">${label}</button>`;
+}
+
 // ---------- กระเป๋า ----------
+const EMPTY_TEXT = {
+  weapon: "ยังไม่มีอาวุธ",
+  armor: "ยังไม่มีเกราะ",
+  consumable: "ยังไม่มีของใช้ — มอนเตอร์มีโอกาสดรอปยา",
+  material: "ตีมอนเตอร์เพื่อเก็บวัตถุดิบ",
+  collectible: "ยังไม่มีของสะสม — ลองตีมอนเตอร์หลายๆ แบบ"
+};
+
 function renderInventory() {
+  // รวมของทุกชิ้นเป็นรายการเดียว แล้วแยกตามประเภทใน Item Database
   const equipment = [...state.inventory.equipment].sort(
     (a, b) => Number(isEquipped(b.uid)) - Number(isEquipped(a.uid)) || b.plus - a.plus
   );
+  const entries = [
+    ...equipment.map((item) => ({ def: ITEMS[item.itemId], html: equipmentRow(item) })),
+    ...Object.entries(state.inventory.materials).map(([itemId, qty]) => ({ def: ITEMS[itemId], html: stackableRow(itemId, qty) }))
+  ];
 
-  const equipmentRows = equipment.map((item) => {
-    const def = ITEMS[item.itemId];
-    const equipped = isEquipped(item.uid);
-    return `
+  const countByType = {};
+  for (const { def } of entries) countByType[def.type] = (countByType[def.type] ?? 0) + 1;
+
+  const tabTypes = Object.keys(ITEM_TYPES).filter((type) => MAIN_TYPES.includes(type) || countByType[type]);
+  if (inventoryTab !== "all" && !tabTypes.includes(inventoryTab)) inventoryTab = "all";
+
+  const tabs = [
+    tabButton("inventory-tab", "all", `ทั้งหมด ${entries.length}`, inventoryTab),
+    ...tabTypes.map((type) => tabButton(
+      "inventory-tab", type, `${ITEM_TYPES[type].icon} ${ITEM_TYPES[type].name} ${countByType[type] ?? 0}`, inventoryTab
+    ))
+  ].join("");
+
+  const sections = tabTypes
+    .filter((type) => inventoryTab === "all" || inventoryTab === type)
+    .map((type) => {
+      const rows = entries.filter((entry) => entry.def.type === type).map((entry) => entry.html).join("");
+      if (!rows && inventoryTab === "all") return "";   // หน้า "ทั้งหมด" ไม่ต้องโชว์หมวดที่ว่าง
+      return `
+        <h4 class="panel-section">${ITEM_TYPES[type].icon} ${ITEM_TYPES[type].name} (${countByType[type] ?? 0})</h4>
+        ${rows || `<p class="empty-text">${EMPTY_TEXT[type] ?? "ยังไม่มีไอเทมประเภทนี้"}</p>`}`;
+    }).join("");
+
+  return `
+    <div class="tab-row">${tabs}</div>
+    ${renderItemDetail()}
+    ${sections || '<p class="empty-text">กระเป๋าว่าง — ตีมอนเตอร์เพื่อเก็บของ</p>'}
+    <p class="hint-text">แตะชื่อไอเทมเพื่อดูรายละเอียด</p>`;
+}
+
+function equipmentRow(item) {
+  const def = ITEMS[item.itemId];
+  const equipped = isEquipped(item.uid);
+  return `
       <div class="item-row">
         <span class="item-icon">${def.icon}</span>
-        <div class="item-info">
+        <div class="item-info" data-action="inspect" data-item-id="${def.id}" data-uid="${item.uid}">
           <p class="item-name">${itemName(item)} ${equipped ? '<span class="badge">สวมอยู่</span>' : ""}</p>
-          <p class="item-meta">${EQUIPMENT_SLOTS[def.slot]} · ${statText(item)}</p>
+          <p class="item-meta">${EQUIPMENT_SLOTS[def.slot] ?? ITEM_TYPES[def.type].name} · ${statText(item)}</p>
         </div>
         <div class="item-actions">
           ${equipped
@@ -205,30 +292,13 @@ function renderInventory() {
           ${equipped ? "" : `<button class="mini-button" data-action="sell-equipment" data-uid="${item.uid}">ขาย ${getEquipmentSellPrice(item)}🪙</button>`}
         </div>
       </div>`;
-  }).join("");
-
-  // ของที่ซ้อนได้: แยก "ของใช้" (กดใช้ได้) ออกจาก "วัตถุดิบ / อื่นๆ"
-  const stackables = Object.entries(state.inventory.materials);
-  const consumableRows = stackables
-    .filter(([itemId]) => ITEMS[itemId].type === "consumable")
-    .map(([itemId, qty]) => stackableRow(itemId, qty)).join("");
-  const materialRows = stackables
-    .filter(([itemId]) => ITEMS[itemId].type !== "consumable")
-    .map(([itemId, qty]) => stackableRow(itemId, qty)).join("");
-
-  return `
-    <h4 class="panel-section">อุปกรณ์ (${equipment.length})</h4>
-    ${equipmentRows || '<p class="empty-text">ยังไม่มีอุปกรณ์</p>'}
-    <h4 class="panel-section">ของใช้</h4>
-    ${consumableRows || '<p class="empty-text">ยังไม่มีของใช้ — มอนเตอร์มีโอกาสดรอปยา</p>'}
-    <h4 class="panel-section">วัตถุดิบ</h4>
-    ${materialRows || '<p class="empty-text">ตีมอนเตอร์เพื่อเก็บวัตถุดิบ</p>'}`;
 }
 
-// แถวของไอเทมที่ซ้อนได้ — ของใช้มีปุ่ม "ใช้" / ของที่ขายไม่ได้ไม่มีปุ่มขาย
+// แถวของไอเทมที่ซ้อนได้ — ของใช้มีปุ่ม "ใช้" / ของที่ขายไม่ได้ไม่มีปุ่มขาย / ถึง maxStack มีป้าย "เต็ม"
 function stackableRow(itemId, qty) {
   const def = ITEMS[itemId];
   const usable = def.type === "consumable";
+  const full = qty >= def.maxStack;
   const meta = [
     usable ? def.description : "",
     usable && def.levelRequirement > 1 ? `ต้อง Lv.${def.levelRequirement}` : "",
@@ -238,8 +308,11 @@ function stackableRow(itemId, qty) {
   return `
       <div class="item-row">
         <span class="item-icon">${def.icon}</span>
-        <div class="item-info">
-          <p class="item-name"><span style="color:${RARITIES[def.rarity].color}">${def.name}</span> ×${qty}</p>
+        <div class="item-info" data-action="inspect" data-item-id="${itemId}">
+          <p class="item-name">
+            <span style="color:${RARITIES[def.rarity].color}">${def.name}</span> ×${qty}
+            ${full ? `<span class="badge full">เต็ม ${def.maxStack}</span>` : ""}
+          </p>
           <p class="item-meta">${meta}</p>
         </div>
         <div class="item-actions">
@@ -249,6 +322,150 @@ function stackableRow(itemId, qty) {
           <button class="mini-button" data-action="sell-material" data-item-id="${itemId}" data-qty="all">ขายหมด</button>` : ""}
         </div>
       </div>`;
+}
+
+// ---------- รายละเอียดไอเทม (ใช้ทั้งในกระเป๋าและสมุดสะสม) ----------
+const STAT_LABELS = {
+  attack: "⚔️ ATK", defense: "🛡️ DEF", hp: "❤️ HP",
+  critical: "💥 คริ", attackSpeed: "⚡ ความเร็วตี", criticalResistance: "🧱 ต้านคริ"
+};
+const PERCENT_STATS = ["critical", "attackSpeed", "criticalResistance"];
+const EFFECT_LABELS = { hp: "❤️ HP", mp: "🔷 MP", exp: "✨ EXP" };
+const COLLECTIBLE_KIND_NAMES = { badge: "เหรียญตรา", trophy: "ถ้วยรางวัล", relic: "ของโบราณ" };
+
+const formatStat = (key, value) => (PERCENT_STATS.includes(key) ? `${Math.round(value * 100)}%` : value);
+const formatChance = (chance) => `${Math.round(chance * 1000) / 10}%`;
+
+function effectText(effect) {
+  if (effect.type === "buff") {
+    return `บัฟ ${STAT_LABELS[effect.stat] ?? effect.stat} +${formatStat(effect.stat, effect.amount)} (${effect.duration} วิ)`;
+  }
+  return `${EFFECT_LABELS[effect.type]} +${effect.amount}`;
+}
+
+// detailed = true → "🐺 หมาป่า (🌲 ป่าลึก) 8%"  /  false → "🐺 หมาป่า" (สั้นๆ สำหรับการ์ด)
+function sourceText(itemId, detailed = false) {
+  const sources = getItemSources(itemId);
+  if (sources.length === 0) return "ยังไม่มีที่ได้";
+
+  const list = sources.map((source) => {
+    if (source.kind === "starter") return "🎁 ของเริ่มต้น";
+    return detailed
+      ? `${source.icon} ${source.name} (${source.maps.join(", ")}) ${formatChance(source.chance)}`
+      : `${source.icon} ${source.name}`;
+  });
+  return detailed ? list.join(" · ") : list.slice(0, 2).join(", ") + (list.length > 2 ? " …" : "");
+}
+
+function renderItemDetail() {
+  if (!inspected) return "";
+
+  const def = ITEMS[inspected.itemId];
+  const owned = inspected.uid === null ? null : findEquipment(inspected.uid);
+
+  // ของที่เพิ่งขาย/ใช้หมด หรือยังไม่ค้นพบ → ปิดรายละเอียด
+  const stillValid = def && (currentPanel === "collection"
+    ? isDiscovered(def.id)
+    : inspected.uid === null ? countMaterial(def.id) > 0 : owned !== null);
+  if (!stillValid) {
+    inspected = null;
+    return "";
+  }
+
+  const rarity = RARITIES[def.rarity];
+  const lines = [];
+
+  if (def.isEquippable) {
+    const plus = owned?.plus ?? 0;
+    const stats = Object.entries(def.stats)
+      .filter(([, value]) => value !== 0)
+      .map(([key, value]) => {
+        const total = value + def.statsPerPlus[key] * plus;
+        return `${STAT_LABELS[key]} ${PERCENT_STATS.includes(key) ? "+" + formatStat(key, total) : total}`;
+      });
+    lines.push(`<b>ค่าพลัง${plus > 0 ? ` (+${plus})` : ""}:</b> ${stats.join(" · ") || "-"}`);
+
+    const perPlus = Object.entries(def.statsPerPlus)
+      .filter(([, value]) => value !== 0)
+      .map(([key, value]) => `${STAT_LABELS[key]} +${formatStat(key, value)}`);
+    if (perPlus.length > 0) lines.push(`<b>ตีบวก +1:</b> ${perPlus.join(" · ")}`);
+
+    if (PERCENT_STATS.some((key) => def.stats[key] !== 0)) {
+      lines.push('<span class="muted">คริ / ความเร็วตี / ต้านคริ ยังไม่มีผลในการต่อสู้ตอนนี้</span>');
+    }
+  }
+  if (def.effects.length > 0) lines.push(`<b>ผล:</b> ${def.effects.map(effectText).join(" · ")}`);
+  if (def.material) lines.push(`<b>วัตถุดิบระดับ:</b> ${def.material.tier}`);
+  if (def.collectible) lines.push(`<b>ของสะสม:</b> ${COLLECTIBLE_KIND_NAMES[def.collectible.kind] ?? def.collectible.kind}`);
+
+  lines.push([
+    `${ITEM_TYPES[def.type].icon} ${ITEM_TYPES[def.type].name}`,
+    def.levelRequirement > 1 ? `ต้อง Lv.${def.levelRequirement}` : "",
+    def.maxStack > 1 ? `ซ้อนได้ ${def.maxStack}` : "",
+    def.isSellable ? `ขาย ${def.sellPrice} 🪙` : "ขายไม่ได้",
+    def.isTradable ? "" : "เทรดไม่ได้"
+  ].filter(Boolean).join(" · "));
+
+  lines.push(`<b>ได้จาก:</b> ${sourceText(def.id, true)}`);
+
+  return `
+    <div class="item-detail">
+      <div class="item-detail-head">
+        <span class="detail-icon">${def.icon}</span>
+        <div class="item-info">
+          <p class="item-name" style="color:${rarity.color}">${def.name}</p>
+          <p class="item-meta" style="color:${rarity.color}">${rarity.name}</p>
+        </div>
+        <button class="panel-close" data-action="close-inspect" aria-label="ปิดรายละเอียด">✕</button>
+      </div>
+      ${def.description ? `<p class="detail-desc">${def.description}</p>` : ""}
+      ${lines.map((line) => `<p class="detail-line">${line}</p>`).join("")}
+    </div>`;
+}
+
+// ---------- สมุดสะสม ----------
+function renderCollection() {
+  const summary = getCollectionSummary();
+  const percent = summary.total > 0 ? Math.floor((summary.found / summary.total) * 100) : 0;
+  if (collectionTab !== "all" && !summary.rows.some((row) => row.type === collectionTab)) collectionTab = "all";
+
+  const tabs = [
+    tabButton("collection-tab", "all", `ทั้งหมด ${summary.found}/${summary.total}`, collectionTab),
+    ...summary.rows.map((row) => tabButton("collection-tab", row.type, `${row.icon} ${row.name} ${row.found}/${row.total}`, collectionTab))
+  ].join("");
+
+  const sections = summary.rows
+    .filter((row) => collectionTab === "all" || row.type === collectionTab)
+    .map((row) => `
+      <h4 class="panel-section">${row.icon} ${row.name} ${row.found} / ${row.total}</h4>
+      <div class="collection-grid">${getCollectionItems(row.type).map(collectionCard).join("")}</div>`)
+    .join("");
+
+  return `
+    <div class="collection-summary">
+      <p class="item-name">ค้นพบแล้ว ${summary.found} / ${summary.total} ชิ้น (${percent}%)</p>
+      <div class="progress"><div class="progress-fill" style="width:${percent}%"></div></div>
+    </div>
+    <div class="tab-row">${tabs}</div>
+    ${renderItemDetail()}
+    ${sections}
+    <p class="hint-text">❓ = ยังไม่เคยได้ · แตะไอเทมที่ค้นพบแล้วเพื่อดูรายละเอียด</p>`;
+}
+
+function collectionCard(def) {
+  if (!isDiscovered(def.id)) {
+    return `
+      <div class="collection-card missing" data-item-id="${def.id}">
+        <span class="item-icon">❓</span>
+        <span class="card-name">???</span>
+        <small>${sourceText(def.id)}</small>
+      </div>`;
+  }
+  return `
+    <button class="collection-card" data-action="inspect" data-item-id="${def.id}">
+      <span class="item-icon">${def.icon}</span>
+      <span class="card-name" style="color:${RARITIES[def.rarity].color}">${def.name}</span>
+    </button>`;
 }
 
 // ---------- อุปกรณ์ + ตีบวก ----------

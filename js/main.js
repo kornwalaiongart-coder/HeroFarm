@@ -124,13 +124,17 @@ function handleEvents(events) {
         travelEvent = event;
         break;
 
-      case "pickup":
+      case "pickup": {
         markDirty();
-        // ของหายากแจ้งเตือนเด่นๆ วัตถุดิบธรรมดาดูแค่ตัวหนังสือลอยพอ
-        if (event.kind === "item" && ITEMS[event.itemId].isEquippable) {
-          showToast("🎉 ได้รับ " + ITEMS[event.itemId].icon + " " + ITEMS[event.itemId].name);
+        const item = event.kind === "item" ? ITEMS[event.itemId] : null;
+        // ได้ครั้งแรก → ลงสมุดสะสม / อุปกรณ์ → แจ้งเตือนเด่นๆ / วัตถุดิบธรรมดาดูแค่ตัวหนังสือลอยพอ
+        if (item && event.isNew) {
+          showToast("📖 ค้นพบไอเทมใหม่! " + item.icon + " " + item.name);
+        } else if (item?.isEquippable) {
+          showToast("🎉 ได้รับ " + item.icon + " " + item.name);
         }
         break;
+      }
 
       case "levelUp":
         showToast("🌟 เลเวลอัพ! ตอนนี้ Lv." + state.player.level);

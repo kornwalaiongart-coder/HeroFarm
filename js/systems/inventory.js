@@ -10,14 +10,26 @@
 
 import { state, addGold } from "../state.js";
 import { ITEMS } from "./itemDatabase.js";
+import { discoverItem, isDiscovered } from "./collection.js";
 
 // ---------- วัตถุดิบ ----------
 export function countMaterial(itemId) {
   return state.inventory.materials[itemId] ?? 0;
 }
 
+// ซ้อนได้ไม่เกิน maxStack ของไอเทม (ตาม Item Database) ส่วนที่เกินจะไม่ถูกเพิ่ม
+// คืนจำนวนที่เพิ่มได้จริง
 export function addMaterial(itemId, qty = 1) {
-  state.inventory.materials[itemId] = countMaterial(itemId) + qty;
+  const room = Math.max(0, ITEMS[itemId].maxStack - countMaterial(itemId));
+  const added = Math.min(qty, room);
+  if (added > 0) state.inventory.materials[itemId] = countMaterial(itemId) + added;
+
+  discoverItem(itemId);
+  return added;
+}
+
+export function isStackFull(itemId) {
+  return countMaterial(itemId) >= ITEMS[itemId].maxStack;
 }
 
 // คืน true ถ้ามีพอและหักสำเร็จ
@@ -32,6 +44,7 @@ export function removeMaterial(itemId, qty = 1) {
 
 // ---------- อุปกรณ์ ----------
 export function addEquipment(itemId, plus = 0) {
+  discoverItem(itemId);
   const item = { uid: state.nextUid, itemId, plus };
   state.nextUid += 1;
   state.inventory.equipment.push(item);
@@ -59,12 +72,15 @@ export function unequip(slot) {
 }
 
 // ---------- ได้ของจากมอนเตอร์ ----------
+// คืน { added: จำนวนที่เข้ากระเป๋าจริง, isNew: เพิ่งได้ไอเทมนี้ครั้งแรกไหม }
 export function addLoot(itemId, qty = 1) {
+  const isNew = !isDiscovered(itemId);
+
   if (ITEMS[itemId].isEquippable) {
     for (let i = 0; i < qty; i++) addEquipment(itemId);
-  } else {
-    addMaterial(itemId, qty);
+    return { added: qty, isNew };
   }
+  return { added: addMaterial(itemId, qty), isNew };
 }
 
 // ---------- ขาย ----------

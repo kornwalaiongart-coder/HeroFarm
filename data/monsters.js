@@ -28,6 +28,7 @@ export const MONSTERS = {
       { itemId: "slime_gel", chance: 0.6, qty: [1, 2] },
       { itemId: "enhance_stone", chance: 0.08 },
       { itemId: "small_hp_potion", chance: 0.05 },
+      { itemId: "slime_badge", chance: 0.01 },
       { itemId: "wooden_sword", chance: 0.03 },
       { itemId: "cloth_armor", chance: 0.03 }
     ]
@@ -76,6 +77,8 @@ export const MONSTERS = {
       { itemId: "goblin_ear", chance: 0.5 },
       { itemId: "enhance_stone", chance: 0.18 },
       { itemId: "small_hp_potion", chance: 0.1 },
+      { itemId: "iron_ore", chance: 0.25, qty: [1, 2] },
+      { itemId: "iron_armor", chance: 0.03 },
       { itemId: "iron_sword", chance: 0.05 },
       { itemId: "leather_armor", chance: 0.05 }
     ]
@@ -100,6 +103,10 @@ export const MONSTERS = {
       { itemId: "bat_wing", chance: 0.5, qty: [1, 2] },
       { itemId: "small_hp_potion", chance: 0.1 },
       { itemId: "large_hp_potion", chance: 0.03 },
+      { itemId: "iron_ore", chance: 0.2 },
+      { itemId: "magic_crystal", chance: 0.05 },
+      { itemId: "iron_armor", chance: 0.04 },
+      { itemId: "ancient_coin", chance: 0.01 },
       { itemId: "enhance_stone", chance: 0.25 }
     ]
   },
@@ -122,6 +129,10 @@ export const MONSTERS = {
     drops: [
       { itemId: "scorpion_stinger", chance: 0.5 },
       { itemId: "large_hp_potion", chance: 0.08 },
+      { itemId: "magic_crystal", chance: 0.1 },
+      { itemId: "flame_sword", chance: 0.02 },
+      { itemId: "knight_armor", chance: 0.015 },
+      { itemId: "ancient_coin", chance: 0.02 },
       { itemId: "enhance_stone", chance: 0.35, qty: [1, 2] },
       { itemId: "desert_blade", chance: 0.03 },
       { itemId: "sand_armor", chance: 0.03 }
@@ -148,6 +159,9 @@ export const MONSTERS = {
       { itemId: "guardian_heart", chance: 1 },
       { itemId: "large_hp_potion", chance: 1, qty: [2, 3] },
       { itemId: "exp_potion", chance: 0.3 },
+      { itemId: "magic_crystal", chance: 0.5 },
+      { itemId: "flame_sword", chance: 0.1 },
+      { itemId: "knight_armor", chance: 0.12 },
       { itemId: "enhance_stone", chance: 1, qty: [3, 5] },
       { itemId: "guardian_axe", chance: 0.15 },
       { itemId: "guardian_armor", chance: 0.15 }

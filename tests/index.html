@@ -22,7 +22,7 @@
     import { loadGame } from "../js/save.js";
     import { createCharacter, validateName } from "../js/systems/player.js";
     import { getPlayerStats, calcDamage } from "../js/systems/stats.js";
-    import { addMaterial, addEquipment, equip, sellEquipment, sellMaterial, countMaterial, isEquipped } from "../js/systems/inventory.js";
+    import { addMaterial, addEquipment, addLoot, equip, sellEquipment, sellMaterial, countMaterial, isEquipped } from "../js/systems/inventory.js";
     import { useItem, pickHealingPotion } from "../js/systems/consumables.js";
     import { upgradeEquipment, getUpgradeCost, MAX_PLUS } from "../js/systems/upgrade.js";
     import { rollLoot } from "../js/systems/loot.js";
@@ -32,8 +32,9 @@
     import { MAPS, START_MAP_ID } from "../data/maps.js";
     import {
       ITEMS, RARITIES, ITEM_TYPES, getItemById, getItemsByType, getItemsByRarity,
-      resolveItemId, isStackable, getCollectionProgress, validateItemDefinitions
+      resolveItemId, isStackable, getCollectionProgress, getCollectionItems, validateItemDefinitions
     } from "../js/systems/itemDatabase.js";
+    import { isDiscovered, getCollectionSummary, getItemSources } from "../js/systems/collection.js";
 
     const lines = [];
     const log = (status, text) => lines.push(`${status} ${text}`);
@@ -206,7 +207,8 @@
       const progress = getCollectionProgress(["slime_jelly", "slime_gel", "wolf_fang", "iron_sword", "nope"]);
       const byType = Object.fromEntries(progress.map((row) => [row.type, row]));
       assert(progress.length === Object.keys(ITEM_TYPES).length, "ทุกประเภท");
-      assert(byType.material.found === 2 && byType.material.total === getItemsByType("material").length, JSON.stringify(byType.material));
+      assert(byType.material.found === 2 && byType.material.total === getCollectionItems("material").length, JSON.stringify(byType.material));
+      assert(byType.material.total === getItemsByType("material").length - 1, "ไม่นับ golem_core (legacy)");
       assert(byType.weapon.found === 1 && byType.collectible.found === 0, "weapon / collectible");
     });
 
@@ -263,6 +265,68 @@
       assert(sellMaterial("slime_badge") === 0 && countMaterial("slime_badge") === 1, "slime_badge");
       addMaterial("small_hp_potion", 3);
       assert(sellMaterial("small_hp_potion", 3) === 9 && countMaterial("small_hp_potion") === 0, "ยาขายได้");
+    });
+
+    // =====================================================
+    // กระเป๋า + สมุดสะสม
+    // =====================================================
+    await test("กระเป๋า: ซ้อนได้ไม่เกิน maxStack", () => {
+      freshCharacter();
+      assert(addMaterial("slime_gel", 990) === 990 && addMaterial("slime_gel", 20) === 9 && countMaterial("slime_gel") === 999, "วัตถุดิบ 999");
+      assert(addMaterial("slime_badge", 1) === 1 && addMaterial("slime_badge", 1) === 0 && countMaterial("slime_badge") === 1, "ของสะสม 1");
+      addMaterial("small_hp_potion", 150);
+      assert(countMaterial("small_hp_potion") === 99, "ของใช้ 99");
+    });
+
+    await test("สมุดสะสม: ได้ของครั้งแรก = ค้นพบ / ขายแล้วยังนับ / ของเริ่มต้นนับด้วย", () => {
+      freshCharacter();
+      assert(isDiscovered("wooden_sword") && isDiscovered("cloth_armor") && !isDiscovered("slime_gel"), "ของเริ่มต้น");
+
+      let loot = addLoot("slime_gel", 2);
+      assert(loot.added === 2 && loot.isNew && isDiscovered("slime_gel"), "ได้ครั้งแรก");
+      loot = addLoot("slime_gel", 1);
+      assert(!loot.isNew, "ครั้งที่สองไม่ใช่ของใหม่");
+
+      sellMaterial("slime_gel", 3);
+      assert(countMaterial("slime_gel") === 0 && isDiscovered("slime_gel") && isDiscovered("slime_jelly"), "ขายแล้วยังนับ / ID เก่า");
+
+      const summary = getCollectionSummary();
+      assert(summary.found === 3 && summary.total === getCollectionItems().length, JSON.stringify(summary));
+      assert(!getCollectionItems().some((item) => item.id === "golem_core"), "ไม่นับของ legacy");
+    });
+
+    await test("สมุดสะสม: เก็บของบนแผนที่ครั้งแรกส่ง event isNew", () => {
+      freshCharacter();
+      const world = createWorld(START_MAP_ID, createRng(1));
+      const drop = (itemId) => ({ id: world.nextId++, kind: "item", itemId, qty: 1, age: 1, x: world.player.x, y: world.player.y });
+      world.drops.push(drop("wolf_fang"), drop("wooden_sword"));
+
+      const pickups = updateWorld(world, { moveX: 0, moveY: 0, attack: false }, 1 / 30).filter((event) => event.type === "pickup");
+      assert(pickups.length === 2, "pickups " + pickups.length);
+      assert(pickups.find((e) => e.itemId === "wolf_fang").isNew && !pickups.find((e) => e.itemId === "wooden_sword").isNew, JSON.stringify(pickups));
+    });
+
+    await test("สมุดสะสม: เซฟ/โหลด + ของที่มีอยู่แล้วนับว่าค้นพบ + ID ผิดถูกตัดทิ้ง", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 3,
+        profile: { name: "Old", gender: "female" },
+        player: { level: 3, exp: 0, gold: 0, gem: 0 },
+        inventory: { materials: { bat_wing: 2 }, equipment: [{ uid: 1, itemId: "iron_sword", plus: 0 }] },
+        equipped: { weapon: 1, armor: null },
+        nextUid: 2,
+        collection: { discovered: { slime_jelly: 123, fake_item: 1 } }
+      }));
+      assert(loadGame(), "load");
+      const ids = Object.keys(state.collection.discovered).sort().join(",");
+      assert(ids === "bat_wing,iron_sword,slime_gel" && state.collection.discovered.slime_gel === 123, ids);
+    });
+
+    await test("ข้อมูล: ไอเทมทุกชิ้นในสมุดสะสมมีที่ได้", () => {
+      const missing = getCollectionItems().filter((item) => getItemSources(item.id).length === 0).map((item) => item.id);
+      assert(missing.length === 0, "ไม่มีที่ได้: " + missing.join(", "));
+      const badge = getItemSources("slime_badge");
+      assert(badge[0].kind === "monster" && badge[0].monsterId === "slime" && badge[0].maps.length > 0, JSON.stringify(badge));
+      assert(getItemSources("wooden_sword").some((source) => source.kind === "starter"), "ของเริ่มต้น");
     });
 
     // =====================================================
@@ -591,6 +655,23 @@
       assert(useButton, "ต้องมีปุ่มใช้ยาในกระเป๋า");
       useButton.click();
       assert(!("small_hp_potion" in game.state.inventory.materials) && game.world.player.hp === 70, `ปุ่มใช้ในกระเป๋า hp=${game.world.player.hp}`);
+      doc.getElementById("panel-close").click();
+
+      // กระเป๋า: แท็บประเภท + ดูรายละเอียดไอเทม
+      game.state.inventory.materials.wolf_fang = 3;
+      doc.querySelector('[data-panel="inventory"]').click();
+      doc.querySelector('[data-action="inventory-tab"][data-tab="material"]').click();
+      assert(!doc.querySelector('#panel-body [data-action="equip"], #panel-body [data-action="unequip"]'), "แท็บวัตถุดิบต้องไม่มีอุปกรณ์");
+      doc.querySelector('[data-action="inspect"][data-item-id="wolf_fang"]').click();
+      assert(doc.querySelector(".item-detail")?.textContent.includes("หมาป่า"), "ต้องแสดงรายละเอียดไอเทม");
+      doc.getElementById("panel-close").click();
+
+      // สมุดสะสม
+      doc.querySelector('[data-panel="collection"]').click();
+      const cards = doc.querySelectorAll(".collection-card");
+      assert(cards.length === getCollectionItems().length && doc.querySelectorAll(".collection-card.missing").length > 0, "การ์ด " + cards.length);
+      doc.querySelector('.collection-card[data-action="inspect"][data-item-id="wooden_sword"]').click();
+      assert(doc.querySelector(".item-detail")?.textContent.includes("ของเริ่มต้น"), "รายละเอียดในสมุดสะสม");
       doc.getElementById("panel-close").click();
       frame2.remove();
     });

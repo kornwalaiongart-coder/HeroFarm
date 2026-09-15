@@ -78,6 +78,9 @@ export function validateItemDefinitions(definitions, legacyIds = LEGACY_ITEM_IDS
       if (def[key] !== undefined && typeof def[key] !== "boolean") fail(`${key} ต้องเป็น true หรือ false`);
     }
     if ("isEquippable" in def) fail("ไม่ต้องใส่ isEquippable — ระบบคำนวณจาก type ให้เอง");
+    if (def.tags !== undefined && (!Array.isArray(def.tags) || def.tags.some((tag) => typeof tag !== "string"))) {
+      fail('tags ต้องเป็น array ของข้อความ เช่น ["legacy"]');
+    }
 
     // --- อุปกรณ์ (weapon / armor / accessory) ---
     const equippable = Boolean(type?.equipSlot);
@@ -237,7 +240,13 @@ export function isStackable(itemOrId) {
   return Boolean(item) && !item.isEquippable;
 }
 
-// ---------- เตรียมไว้สำหรับสมุดสะสม (Item Collection) ----------
+// ---------- สมุดสะสม (Item Collection) ----------
+// ไอเทมที่นับในสมุดสะสม — ไม่รวมไอเทมป้าย "legacy" (ของเก่าที่หาไม่ได้แล้ว)
+// type ไม่ระบุ = ทุกประเภท
+export function getCollectionItems(type = null) {
+  return ITEM_LIST.filter((item) => !item.tags.includes("legacy") && (type === null || item.type === type));
+}
+
 // discoveredIds = ID ไอเทมที่ผู้เล่นเคยได้ (Array หรือ Set)
 // คืน [{ type, name, icon, found, total }] เรียงตาม ITEM_TYPES
 //   เช่น { type: "weapon", name: "อาวุธ", found: 2, total: 6 }
@@ -249,7 +258,7 @@ export function getCollectionProgress(discoveredIds = []) {
   }
 
   return Object.values(ITEM_TYPES).map((type) => {
-    const items = getItemsByType(type.id);
+    const items = getCollectionItems(type.id);
     return {
       type: type.id,
       name: type.name,

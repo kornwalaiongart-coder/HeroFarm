@@ -50,6 +50,7 @@ export const EQUIPMENT_SLOTS = {
 // ใส่เฉพาะค่าที่ต่างจากค่าเริ่มต้น — ค่าที่ไม่ใส่ itemDatabase.js เติมให้:
 //   description "" · maxStack ตามประเภท · sellPrice 0 · buyPrice 0 (ร้านไม่ขาย)
 //   levelRequirement 1 · isSellable true · isTradable true
+// tags: ป้ายเพิ่มเติม เช่น ["legacy"] = ของเก่าที่หาไม่ได้แล้ว (ไม่นับในสมุดสะสม)
 // =====================================================
 export const ITEM_DEFINITIONS = [
   // ===== อาวุธ (weapon) =====
@@ -76,6 +77,7 @@ export const ITEM_DEFINITIONS = [
   {
     id: "golem_hammer", name: "ค้อนหินโกเลม", type: "weapon", rarity: "epic", icon: "🔨",
     description: "ค้อนหนักอึ้งจากแกนโกเลมโบราณ",
+    tags: ["legacy"],
     sellPrice: 150, levelRequirement: 9,
     stats: { attack: 26 }, statsPerPlus: { attack: 5 }
   },
@@ -121,6 +123,7 @@ export const ITEM_DEFINITIONS = [
   {
     id: "stone_armor", name: "เกราะหินโกเลม", type: "armor", rarity: "epic", icon: "🛡️",
     description: "เกราะหินหนาจากโกเลมโบราณ",
+    tags: ["legacy"],
     sellPrice: 150, levelRequirement: 9,
     stats: { defense: 14, hp: 80 }, statsPerPlus: { defense: 3, hp: 25 }
   },
@@ -212,6 +215,7 @@ export const ITEM_DEFINITIONS = [
   {
     id: "golem_core", name: "แกนโกเลม", type: "material", rarity: "rare", icon: "🔶",
     description: "แกนพลังงานของโกเลมโบราณ (ไม่ดรอปแล้ว)",
+    tags: ["legacy"],
     sellPrice: 20,
     material: { tier: 3, craftingTags: ["golem", "core"] }
   },

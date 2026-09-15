@@ -493,17 +493,23 @@ function updateDrops(world, dt) {
 
 function collectDrop(world, drop) {
   const { player } = world;
+  let isNew = false;
 
   if (drop.kind === "gold") {
     addGold(drop.qty);
     addEffect(world, { text: "+" + drop.qty + " 🪙", x: player.x, y: player.y - 34, color: "#ffd23f" });
   } else {
-    addLoot(drop.itemId, drop.qty);
+    const loot = addLoot(drop.itemId, drop.qty);
     const item = ITEMS[drop.itemId];
-    addEffect(world, { text: item.icon + " " + item.name + (drop.qty > 1 ? " ×" + drop.qty : ""), x: player.x, y: player.y - 34, color: "#fff8ea" });
+    const text = loot.added > 0
+      ? item.icon + " " + item.name + (loot.added > 1 ? " ×" + loot.added : "")
+      : item.icon + " " + item.name + " (เต็ม)";   // ซ้อนถึง maxStack แล้ว
+    addEffect(world, { text, x: player.x, y: player.y - 34, color: loot.added > 0 ? "#fff8ea" : "#c9bfb0" });
+    isNew = loot.isNew;
   }
 
-  world.events.push({ type: "pickup", kind: drop.kind, itemId: drop.itemId, qty: drop.qty });
+  // isNew = ได้ไอเทมนี้ครั้งแรก (ลงสมุดสะสม)
+  world.events.push({ type: "pickup", kind: drop.kind, itemId: drop.itemId, qty: drop.qty, isNew });
 }
 
 // ---------- ตัวหนังสือลอย ----------

@@ -287,7 +287,7 @@ button {
 /* ---------- เมนูล่าง ---------- */
 .menu-bar {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   padding: 8px 10px;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
@@ -577,6 +577,153 @@ button {
   background: #fff;
   border-radius: 14px;
   padding: 10px 12px;
+}
+
+/* ---------- แท็บ (กระเป๋า / สมุดสะสม) ---------- */
+.tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab-chip {
+  border: none;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--cream-dark);
+  color: #6b4a1f;
+  box-shadow: 0 2px 0 var(--cream-shadow);
+  white-space: nowrap;
+}
+
+.tab-chip.active {
+  background: var(--purple);
+  color: var(--cream);
+  box-shadow: 0 2px 0 var(--purple-dark);
+}
+
+.item-info[data-action] {
+  cursor: pointer;
+}
+
+.badge.full {
+  background: var(--red);
+}
+
+.hint-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---------- รายละเอียดไอเทม ---------- */
+.item-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fff;
+  border: 2px solid var(--purple);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.item-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detail-icon {
+  font-size: 38px;
+}
+
+.detail-desc {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.detail-line {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.detail-line b {
+  color: var(--ink);
+}
+
+.detail-line .muted {
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* ---------- สมุดสะสม ---------- */
+.collection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.progress {
+  height: 10px;
+  background: var(--cream-dark);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #b39ddb, var(--purple));
+  border-radius: 999px;
+}
+
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px;
+}
+
+.collection-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 88px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 0 #f0dcb8;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.collection-card.missing {
+  background: #efe3cc;
+  box-shadow: none;
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.card-name {
+  font-family: var(--heading);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.collection-card small {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 /* ---------- หน้าสร้างตัวละคร ---------- */
