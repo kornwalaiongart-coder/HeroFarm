@@ -36,6 +36,8 @@
     } from "../js/systems/itemDatabase.js";
     import { isDiscovered, getCollectionSummary, getItemSources } from "../js/systems/collection.js";
     import { loadCharacterSprites, getCharacterSprite } from "../js/game/characterSprites.js";
+    import { getSwingPose, SWING_TIMING } from "../js/game/swingAnimation.js";
+    import { buyItem, getBuyLimit, validateShop } from "../js/systems/shop.js";
     import {
       COLLECTION_REWARDS, getRewardStatuses, claimReward, getRewardsCompletedBy, validateCollectionRewards
     } from "../js/systems/collectionRewards.js";
@@ -427,16 +429,72 @@
       const full = await waitSprite("male", ["weapon", "armor"]);
       const bare = await waitSprite("male", []);
       const female = await waitSprite("female", ["armor", "weapon"]);
-      assert(full.width > 0 && full.height > 0 && female.height === full.height, `ขนาด ${full.width}x${full.height}`);
+      assert(full.back.width > 0 && full.back.height > 0 && female.back.height === full.back.height, `ขนาด ${full.back.width}x${full.back.height}`);
       assert(getCharacterSprite("male", ["armor", "weapon"]) === full, "ลำดับช่องต่างกันต้องได้รูปเดียวกัน (cache)");
 
-      // ดาบหายไป → จุดโปร่งใสต้องต่างกันพอสมควร
-      const alpha = (canvas) => canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
-      const a = alpha(full);
-      const b = alpha(bare);
-      let changed = 0;
-      for (let i = 3; i < a.length; i += 4) if (a[i] !== b[i]) changed++;
-      assert(changed > 100, "ถอดอาวุธแล้วภาพต้องเปลี่ยน: " + changed + " จุด");
+      // แขนถืออาวุธแยกเป็นแผ่นของตัวเอง (หมุนรอบหัวไหล่ตอนฟัน) + มีชั้นหน้า (ผ้าคลุม ผมหน้า)
+      const opaquePixels = (canvas) => {
+        const data = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data;
+        let count = 0;
+        for (let i = 3; i < data.length; i += 4) if (data[i] > 0) count++;
+        return count;
+      };
+      assert(full.moving && full.front, "SVG แบ่ง 3 แผ่น: หลัง / แขน / หน้า");
+      // ตัวผู้หญิงใช้ภาพ PNG ทั้งตัว → ภาพนิ่ง ไม่มีส่วนที่ขยับ แต่ต้องมีตำแหน่งจัดวางของตัวเอง
+      assert(female.moving === null && female.layout.feetY === 720 && female.weaponSide === -1, "PNG ภาพนิ่ง " + JSON.stringify(female.layout));
+      assert(getCharacterSprite("female", []) === female, "PNG ไม่เปลี่ยนตามอุปกรณ์ (รูปเดียวกัน)");
+      assert(full.pivot?.x === 140 && full.pivot?.y === 262 && full.weaponSide === -1 && full.tip, "หัวไหล่ " + JSON.stringify(full.pivot));
+      // ถอดอาวุธ: แขนยังขยับได้ แต่แผ่นแขนต้องเล็กลง (ไม่มีดาบ) และไม่มีรอยฟัน
+      assert(bare.moving && bare.tip === null && opaquePixels(full.moving) > opaquePixels(bare.moving) + 100, "ถอดอาวุธแล้วแขนไม่มีดาบ");
+      assert(bare.weaponSide === -1, "ถอดอาวุธแล้วยังรู้ว่ามือถืออาวุธอยู่ด้านไหน");
+    });
+
+    await test("ท่าฟัน: ยกอาวุธ → ฟันข้ามหัว → กลับท่าเดิม", () => {
+      assert(getSwingPose(-0.01) === null && getSwingPose(1) === null && getSwingPose(NaN) === null, "นอกช่วงเวลาต้องไม่มีท่า");
+      const start = getSwingPose(0);
+      const hit = getSwingPose(SWING_TIMING.strike);
+      const end = getSwingPose(SWING_TIMING.strike + SWING_TIMING.recover);
+      assert(start.weaponAngle < hit.weaponAngle && hit.weaponAngle < end.weaponAngle, `มุม ${start.weaponAngle} → ${hit.weaponAngle} → ${end.weaponAngle}`);
+      assert(hit.weaponAngle - start.weaponAngle > 150, "ต้องเหวี่ยงกว้างข้ามหัว");
+      assert(hit.lean > 0 && hit.step > 0 && start.lean < 0, "ง้างตัวไปหลัง แล้วเอน+ก้าวไปข้างหน้าตอนฟัน");
+      assert(Math.abs(end.weaponAngle % 360) < 1e-9 && Math.abs(end.lean) < 1e-9 && Math.abs(end.step) < 1e-9 && end.trail.alpha < 1e-9, "จบแล้วกลับท่าปกติ");
+    });
+
+    await test("กดโจมตีแล้วบันทึกเวลาเริ่มฟัน (ใช้เล่นท่าฟัน)", () => {
+      freshCharacter();
+      const world = createWorld(START_MAP_ID, createRng(1));
+      assert(world.player.attackStartedAt === -Infinity, "ยังไม่เคยฟัน");
+      world.time = 5;
+      updateWorld(world, { moveX: 0, moveY: 0, attack: true }, 1 / 30);
+      assert(world.player.attackStartedAt === world.time, "attackStartedAt " + world.player.attackStartedAt);
+    });
+
+    // =====================================================
+    // ร้านค้า
+    // =====================================================
+    await test("ร้านค้า: ข้อมูลถูกต้อง (ไอเทมมีจริง + มีราคาซื้อ + ไม่ซ้ำ)", () => {
+      assert(validateShop().length === 0, validateShop().join(" | "));
+      const errors = validateShop({ stock: ["slime_gel", "nope", "small_hp_potion", "small_hp_potion"] });
+      assert(errors.length === 3, "ต้องจับ ไม่มีราคา / ไม่มีไอเทม / ซ้ำ: " + errors.join(" | "));
+    });
+
+    await test("ร้านค้า: ซื้อแล้วหักทอง + ได้ของ / ทองไม่พอ / เต็ม / ร้านไม่ขาย", () => {
+      freshCharacter();
+      state.player.gold = 100;
+      let result = buyItem("small_hp_potion", 5);
+      assert(result.ok && result.cost === 75 && state.player.gold === 25 && countMaterial("small_hp_potion") === 5, JSON.stringify(result));
+      assert(result.isNew && isDiscovered("small_hp_potion"), "ซื้อครั้งแรก = ค้นพบ");
+
+      result = buyItem("small_hp_potion", 2);
+      assert(result.reason === "gold" && state.player.gold === 25 && countMaterial("small_hp_potion") === 5, "ทองไม่พอต้องไม่หักอะไร");
+      assert(buyItem("slime_gel").reason === "notInShop" && buyItem("small_hp_potion", 0).reason === "invalidQty", "notInShop / invalidQty");
+
+      state.player.gold = 1_000_000;
+      addMaterial("small_hp_potion", 999);
+      assert(getBuyLimit("small_hp_potion") === 0 && buyItem("small_hp_potion").reason === "full", "เต็ม maxStack");
+
+      const count = state.inventory.equipment.length;
+      assert(buyItem("iron_sword").ok && state.inventory.equipment.length === count + 1, "ซื้ออุปกรณ์");
     });
 
     // =====================================================
@@ -792,6 +850,18 @@
       doc.querySelector('[data-panel="inventory"]').click();
       doc.querySelector('[data-action="inventory-tab"][data-tab="armor"]').click();
       assert(!doc.querySelector('[data-action="equip"][data-uid="900"]') && doc.getElementById("panel-body").textContent.includes("🔒 Lv.12"), "ปุ่มสวมต้องล็อก");
+      doc.getElementById("panel-close").click();
+
+      // 🏪 ร้านค้า: นอกจุดพักปิด / ในจุดพักซื้อได้
+      doc.querySelector('[data-panel="shop"]').click();
+      assert(doc.querySelector(".shop-closed"), "นอกจุดพักร้านต้องปิด");
+      doc.getElementById("panel-close").click();
+      game.world.player.x = game.world.map.spawn.x;
+      game.world.player.y = game.world.map.spawn.y;
+      const goldBefore = game.state.player.gold;
+      doc.querySelector('[data-panel="shop"]').click();
+      doc.querySelector('[data-action="buy"][data-item-id="small_hp_potion"][data-qty="1"]').click();
+      assert(game.state.player.gold === goldBefore - 15 && game.state.inventory.materials.small_hp_potion === 1, `ซื้อยาในเกม ทอง ${goldBefore} → ${game.state.player.gold}`);
       doc.getElementById("panel-close").click();
       frame2.remove();
     });

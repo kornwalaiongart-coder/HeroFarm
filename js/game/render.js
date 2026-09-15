@@ -9,7 +9,8 @@
 import { ITEMS, RARITIES } from "../systems/itemDatabase.js";
 import { MAPS } from "../../data/maps.js";
 import { WORLD_RULES } from "./world.js";
-import { getCharacterSprite, SPRITE_LAYOUT } from "./characterSprites.js";
+import { getCharacterSprite } from "./characterSprites.js";
+import { getSwingPose } from "./swingAnimation.js";
 
 const TILE = 80;
 
@@ -73,7 +74,7 @@ export function createRenderer(canvas) {
     const sprites = [
       ...world.obstacles.map((o) => ({ y: o.y, draw: () => drawObstacle(ctx, o, theme) })),
       ...world.monsters.filter((m) => !m.dead).map((m) => ({ y: m.y, draw: () => drawMonster(ctx, m, world.time) })),
-      { y: world.player.y, draw: () => drawPlayer(ctx, world.player, profile, equipped) }
+      { y: world.player.y, draw: () => drawPlayer(ctx, world.player, profile, equipped, world.time) }
     ].sort((a, b) => a.y - b.y);
     for (const sprite of sprites) sprite.draw();
 
@@ -307,7 +308,7 @@ const PLAYER_SPRITE_HEIGHT = 76;   // ความสูงตัวละคร
 const lastSprites = {};            // รูปล่าสุดของแต่ละเพศ ใช้ระหว่างรอรูปชุดใหม่ กันภาพกะพริบตอนเปลี่ยนอุปกรณ์
 let facingLeft = false;            // เดินขึ้น/ลงตรงๆ ให้หันทางเดิมต่อ
 
-function drawPlayer(ctx, player, profile, equipped) {
+function drawPlayer(ctx, player, profile, equipped, time) {
   const gender = profile?.gender === "female" ? "female" : "male";
   const equippedSlots = Object.keys(equipped ?? {}).filter((slot) => equipped[slot] !== null);
   const sprite = getCharacterSprite(gender, equippedSlots) ?? lastSprites[gender];
@@ -320,43 +321,88 @@ function drawPlayer(ctx, player, profile, equipped) {
   if (player.facing.x < -0.1) facingLeft = true;
   if (player.facing.x > 0.1) facingLeft = false;
 
-  const unit = PLAYER_SPRITE_HEIGHT / (SPRITE_LAYOUT.feetY - SPRITE_LAYOUT.topY);
+  // กลับภาพให้ "มือที่ถืออาวุธ" อยู่ด้านที่หัน — ฟันไปข้างหน้าเสมอ
+  const side = sprite.weaponSide;
+  const flip = facingLeft ? side > 0 : side < 0;
+
+  // ภาพแต่ละตัวบอกขนาด/ตำแหน่งของตัวเอง (SVG กับ PNG ใช้หน่วยต่างกัน)
+  const layout = sprite.layout;
+  const unit = PLAYER_SPRITE_HEIGHT / (layout.feetY - layout.topY);
+  const width = layout.width * unit;
+  const height = layout.height * unit;
   const groundY = player.y + player.radius * 0.8;
   const bob = player.moving ? Math.abs(Math.sin(player.walkTime * 12)) * 3 : 0;
-  const lunge = player.swingTimer > 0 ? 1.06 : 1;
+  const pose = player.dead ? null : getSwingPose(time - player.attackStartedAt);
 
   ctx.save();
   if (player.dead) ctx.globalAlpha = 0.35;
   drawShadow(ctx, player.x, player.y, player.radius);
 
+  // จุดเริ่มอยู่ที่เท้า → เอนตัว/ยุบตัวรอบเท้า เหมือนลงน้ำหนักจริง
   ctx.translate(player.x, groundY - bob);
-  if (facingLeft) ctx.scale(-1, 1);
-  ctx.scale(lunge, lunge);
-  ctx.drawImage(
-    sprite,
-    -SPRITE_LAYOUT.centerX * unit, -SPRITE_LAYOUT.feetY * unit,
-    SPRITE_LAYOUT.width * unit, SPRITE_LAYOUT.height * unit
-  );
+  if (flip) ctx.scale(-1, 1);
+  if (pose) {
+    // หลังกลับภาพแล้ว "ด้านหน้า" = ด้านที่ถืออาวุธในภาพ (side)
+    ctx.translate(pose.step * side, 0);
+    ctx.rotate(pose.lean * side * DEG);
+    ctx.scale(1 + pose.squash, 1 - pose.squash);
+  }
+  const left = -layout.centerX * unit;
+  const top = -layout.feetY * unit;
+
+  // ชั้นหลัง → ส่วนที่ขยับ (แขน+อาวุธ หมุนรอบหัวไหล่) → ชั้นหน้า (ผ้าคลุม ผมหน้า)
+  ctx.drawImage(sprite.back, left, top, width, height);
+
+  if (sprite.moving) {
+    ctx.save();
+    ctx.translate((sprite.pivot.x - layout.centerX) * unit, (sprite.pivot.y - layout.feetY) * unit);
+    if (pose) {
+      if (sprite.tip) drawSwingTrail(ctx, sprite, pose, side, unit);
+      ctx.rotate(pose.weaponAngle * side * DEG);
+    }
+    ctx.drawImage(sprite.moving, -sprite.pivot.x * unit, -sprite.pivot.y * unit, width, height);
+    ctx.restore();
+  }
+
+  if (sprite.front) ctx.drawImage(sprite.front, left, top, width, height);
   ctx.restore();
 
-  drawSwing(ctx, player, groundY - PLAYER_SPRITE_HEIGHT * 0.45);
   if (profile) drawLabel(ctx, profile.name, player.x, groundY + 13, "#fff8ea", 12);
 }
 
-// รอยฟันเป็นส่วนโค้งด้านหน้าตัวละคร
-function drawSwing(ctx, player, centerY) {
-  if (player.swingTimer <= 0) return;
+const DEG = Math.PI / 180;
 
-  const progress = 1 - player.swingTimer / WORLD_RULES.swingDuration;
-  const start = Math.atan2(player.facing.y, player.facing.x) - WORLD_RULES.attackArc / 2;
+// รอยฟัน: เส้นโค้งตามปลายอาวุธ จากท่ายกไปถึงมุมปัจจุบัน แล้วค่อยๆ จาง
+// วาดในพิกัดที่ย้ายจุดเริ่มไปไว้ที่จุดหมุนแล้ว (หัวไหล่ หรือมือ) ก่อนหมุน
+function drawSwingTrail(ctx, sprite, pose, side, unit) {
+  if (pose.trail.alpha <= 0.01) return;
+
+  const dx = (sprite.tip.x - sprite.pivot.x) * unit;
+  const dy = (sprite.tip.y - sprite.pivot.y) * unit;
+  const radius = Math.hypot(dx, dy);
+  if (radius < 4) return;
+
+  const restAngle = Math.atan2(dy, dx);
+  const from = restAngle + pose.trail.from * side * DEG;
+  const to = restAngle + pose.trail.to * side * DEG;
+  const counterClockwise = side < 0;
 
   ctx.save();
-  ctx.fillStyle = "#ffffff66";
+  ctx.lineCap = "round";
+  ctx.globalAlpha *= pose.trail.alpha;
+  ctx.strokeStyle = "#ffffff";
+  // อาวุธยาว (ไม้เท้า/หอก) รัศมีใหญ่ → จำกัดความหนา ไม่ให้รอยฟันใหญ่กว่าตัวละคร
+  ctx.lineWidth = Math.min(8, Math.max(4, radius * 0.3));
   ctx.beginPath();
-  ctx.moveTo(player.x, centerY);
-  ctx.arc(player.x, centerY, 58, start, start + WORLD_RULES.attackArc * progress);
-  ctx.closePath();
-  ctx.fill();
+  ctx.arc(0, 0, radius * 0.85, from, to, counterClockwise);
+  ctx.stroke();
+
+  ctx.globalAlpha *= 0.7;
+  ctx.strokeStyle = "#cfe8ff";
+  ctx.lineWidth = Math.min(3, Math.max(2, radius * 0.1));
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, from, to, counterClockwise);
+  ctx.stroke();
   ctx.restore();
 }
 

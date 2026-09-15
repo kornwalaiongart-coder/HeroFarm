@@ -287,7 +287,7 @@ button {
 /* ---------- เมนูล่าง ---------- */
 .menu-bar {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   padding: 8px 10px;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
@@ -753,6 +753,35 @@ button {
 
 .reward-row.claimed {
   opacity: 0.7;
+}
+
+/* ---------- ร้านค้า ---------- */
+.shop-wallet {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.shop-wallet b {
+  font-family: var(--heading);
+  font-size: 17px;
+  color: #a3701a;
+}
+
+.shop-closed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px 12px;
 }
 
 /* ---------- หน้าสร้างตัวละคร ---------- */

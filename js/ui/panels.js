@@ -14,7 +14,8 @@ import {
   sellMaterial, sellEquipment, getEquipmentSellPrice
 } from "../systems/inventory.js";
 import { getCollectionSummary, getItemSources, isDiscovered } from "../systems/collection.js";
-import { getRewardStatuses, claimReward, countClaimableRewards } from "../systems/collectionRewards.js";
+import { getRewardStatuses, claimReward, countClaimableRewards, getRewardsCompletedBy } from "../systems/collectionRewards.js";
+import { SHOP, buyItem, getBuyLimit } from "../systems/shop.js";
 import { MAX_PLUS, getUpgradeCost, upgradeEquipment } from "../systems/upgrade.js";
 import { getPlayerStats, getEquipmentStats } from "../systems/stats.js";
 import { markDirty, saveGame, resetGame, getSaveStatusText } from "../save.js";
@@ -26,6 +27,7 @@ const PANEL_TITLES = {
   inventory: "🎒 กระเป๋า",
   equipment: "🛡️ อุปกรณ์และตีบวก",
   collection: "📖 สมุดสะสม",
+  shop: SHOP.name,
   settings: "⚙️ ตั้งค่า"
 };
 
@@ -95,6 +97,34 @@ function handleAction({ action, uid, slot, itemId, qty, tab, rewardId }) {
     case "equip": {
       const result = equip(itemUid);
       if (result.reason === "level") showToast(`🔒 ต้อง Lv.${result.required} ถึงจะสวมได้ (ตอนนี้ Lv.${state.player.level})`);
+      break;
+    }
+
+    case "buy": {
+      if (!hooks.isShopOpen?.()) {
+        showToast("🏕️ ร้านค้าเปิดเฉพาะที่จุดพัก");
+        break;
+      }
+      const result = buyItem(itemId, Number(qty));
+      if (!result.ok) {
+        const reasons = {
+          gold: "ทองไม่พอ",
+          full: "ของชิ้นนี้เต็มกระเป๋าแล้ว",
+          notInShop: "ร้านนี้ไม่ขายของชิ้นนี้",
+          invalidQty: "จำนวนไม่ถูกต้อง"
+        };
+        showToast("⚠️ " + reasons[result.reason]);
+        break;
+      }
+      showToast(`🛒 ซื้อ ${result.item.icon} ${result.item.name} ×${result.qty} −${result.cost.toLocaleString("en-US")} 🪙`);
+      if (result.isNew) {
+        showToast("📖 ค้นพบไอเทมใหม่! " + result.item.icon + " " + result.item.name);
+        for (const reward of getRewardsCompletedBy(result.item.id)) {
+          showToast("🏆 สะสมครบ! รับรางวัล “" + reward.name + "” ได้ที่ 📖 สมุดสะสม");
+        }
+        refreshCollectionAlert();
+      }
+      saveGame();
       break;
     }
 
@@ -214,6 +244,7 @@ export function renderPanel() {
     inventory: renderInventory,
     equipment: renderEquipment,
     collection: renderCollection,
+    shop: renderShop,
     settings: renderSettings
   };
   $("panel-body").innerHTML = renderers[currentPanel]();
@@ -381,10 +412,11 @@ function renderItemDetail() {
   const def = ITEMS[inspected.itemId];
   const owned = inspected.uid === null ? null : findEquipment(inspected.uid);
 
-  // ของที่เพิ่งขาย/ใช้หมด หรือยังไม่ค้นพบ → ปิดรายละเอียด
-  const stillValid = def && (currentPanel === "collection"
-    ? isDiscovered(def.id)
-    : inspected.uid === null ? countMaterial(def.id) > 0 : owned !== null);
+  // ของที่เพิ่งขาย/ใช้หมด, ยังไม่ค้นพบ (สมุดสะสม), หรือร้านไม่ขาย → ปิดรายละเอียด
+  let stillValid = false;
+  if (def && currentPanel === "collection") stillValid = isDiscovered(def.id);
+  else if (def && currentPanel === "shop") stillValid = SHOP.stock.includes(def.id);
+  else if (def) stillValid = inspected.uid === null ? countMaterial(def.id) > 0 : owned !== null;
   if (!stillValid) {
     inspected = null;
     return "";
@@ -541,6 +573,63 @@ function collectionCard(def) {
       <span class="item-icon">${def.icon}</span>
       <span class="card-name" style="color:${RARITIES[def.rarity].color}">${def.name}</span>
     </button>`;
+}
+
+// ---------- ร้านค้า ----------
+function renderShop() {
+  if (!hooks.isShopOpen?.()) {
+    return `
+      <div class="shop-closed">
+        <span class="detail-icon">🏕️</span>
+        <p class="item-name">ร้านค้าเปิดเฉพาะที่จุดพัก</p>
+        <p class="item-meta">เดินกลับไปที่วงกลม "จุดพัก (ปลอดภัย)" ของแผนที่ แล้วเปิดร้านค้าอีกครั้ง</p>
+      </div>`;
+  }
+
+  return `
+    <div class="shop-wallet"><span>ทองของคุณ</span><b>🪙 ${state.player.gold.toLocaleString("en-US")}</b></div>
+    ${renderItemDetail()}
+    ${SHOP.stock.map(shopRow).join("")}
+    <p class="hint-text">แตะชื่อไอเทมเพื่อดูรายละเอียด · ขายของได้ที่ 🎒 กระเป๋า</p>`;
+}
+
+function shopRow(itemId) {
+  const def = ITEMS[itemId];
+  const owned = def.isEquippable
+    ? state.inventory.equipment.filter((item) => item.itemId === itemId).length
+    : countMaterial(itemId);
+  const limit = getBuyLimit(itemId);
+
+  let detail = def.description;
+  if (def.isEquippable) detail = statText({ itemId, plus: 0 });
+  else if (def.effects.length > 0) detail = def.effects.map(effectText).join(" · ");
+
+  const meta = [
+    `${ITEM_TYPES[def.type].icon} ${ITEM_TYPES[def.type].name}`,
+    detail,
+    levelText(def),
+    `มีอยู่ ${owned}`
+  ].filter(Boolean).join(" · ");
+
+  const buyButton = (qty) => {
+    const cost = def.buyPrice * qty;
+    const disabled = state.player.gold < cost || limit < qty;
+    const label = qty > 1 ? `×${qty} ${cost.toLocaleString("en-US")}🪙` : `ซื้อ ${cost.toLocaleString("en-US")}🪙`;
+    return `<button class="mini-button ${qty === 1 ? "primary" : ""}" data-action="buy" data-item-id="${itemId}" data-qty="${qty}" ${disabled ? "disabled" : ""}>${label}</button>`;
+  };
+
+  return `
+      <div class="item-row">
+        <span class="item-icon">${def.icon}</span>
+        <div class="item-info" data-action="inspect" data-item-id="${itemId}">
+          <p class="item-name"><span style="color:${RARITIES[def.rarity].color}">${def.name}</span></p>
+          <p class="item-meta">${meta}</p>
+        </div>
+        <div class="item-actions">
+          ${limit < 1 ? '<button class="mini-button" disabled>เต็มแล้ว</button>' : buyButton(1)}
+          ${!def.isEquippable && limit >= 5 ? buyButton(5) : ""}
+        </div>
+      </div>`;
 }
 
 // ---------- อุปกรณ์ + ตีบวก ----------

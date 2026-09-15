@@ -11,7 +11,7 @@ import { loadGame, saveGame, saveIfDirty, markDirty } from "./save.js";
 import { MAPS } from "../data/maps.js";
 import { ITEMS } from "./systems/itemDatabase.js";
 import { MONSTERS } from "../data/monsters.js";
-import { createWorld, updateWorld } from "./game/world.js";
+import { createWorld, updateWorld, isInSafeZone } from "./game/world.js";
 import { createRenderer } from "./game/render.js";
 import { loadCharacterSprites } from "./game/characterSprites.js";
 import { initInput, readInput, clearInput } from "./game/input.js";
@@ -44,7 +44,9 @@ function start() {
   initPanels({
     onOpen: clearInput,
     onReset: () => beginGame(false),
-    onUseItem: useConsumable
+    onUseItem: useConsumable,
+    // ร้านค้าเปิดเฉพาะตอนยืนอยู่ในจุดพัก (และยังไม่หมดสติ)
+    isShopOpen: () => world !== null && !world.player.dead && isInSafeZone(world, world.player.x, world.player.y)
   });
 
   beginGame(hasSave);

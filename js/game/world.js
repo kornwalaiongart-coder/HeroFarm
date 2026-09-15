@@ -63,6 +63,7 @@ export function createWorld(mapId, rng = Math.random, fromMapId = null) {
       walkTime: 0,
       attackTimer: 0,
       swingTimer: 0,
+      attackStartedAt: -Infinity,   // เวลาที่เริ่มฟันล่าสุด (render.js ใช้เล่นท่าฟัน)
       lastHurtAt: -Infinity,
       dead: false,
       respawnTimer: 0
@@ -275,6 +276,7 @@ function updatePlayer(world, input, stats, dt) {
   if (input.attack && player.attackTimer <= 0) {
     player.attackTimer = stats.attackCooldown;
     player.swingTimer = WORLD_RULES.swingDuration;
+    player.attackStartedAt = world.time;
     playerAttack(world, stats);
   }
 }

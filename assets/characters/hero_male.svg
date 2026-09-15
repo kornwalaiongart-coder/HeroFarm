@@ -69,8 +69,8 @@
     <path d="M187 191 Q200 199 213 191" fill="none" stroke="#7a3d35" stroke-width="3" stroke-linecap="round"/>
     <ellipse cx="165" cy="179" rx="9" ry="4" fill="#f2a9a0" opacity="0.45"/>
     <ellipse cx="235" cy="179" rx="9" ry="4" fill="#f2a9a0" opacity="0.45"/>
-    <!-- bare hands + feet (visible when gloves / boots are unequipped) -->
-    <path class="ln" fill="#f6d7bf" d="M116 398 H144 L144 413 Q149 434 142 450 Q128 460 114 450 Q108 432 115 413 Z"/>
+    <!-- bare hand (other arm) + feet (visible when gloves / boots are unequipped) -->
+    <!-- the sword-arm hand lives in the weapon-arm group below -->
     <path class="ln" fill="#f6d7bf" d="M258 398 H286 L286 413 Q289 443 280 452 Q270 458 262 448 Q255 432 260 413 Z"/>
     <path class="ln" fill="#f6d7bf" d="M158 712 H190 Q204 740 202 758 Q200 768 186 768 H162 Q148 768 148 756 Q148 736 158 712 Z"/>
     <path class="ln" fill="#f6d7bf" d="M242 712 H210 Q196 740 198 758 Q200 768 214 768 H238 Q252 768 252 756 Q252 736 242 712 Z"/>
@@ -85,8 +85,6 @@
     <path class="thin" d="M218 560 Q228 566 238 560"/>
     <path class="ln" fill="#f3e9d2" d="M150 240 Q200 228 250 240 L262 300 L254 400 H146 L138 300 Z"/>
     <path class="ln" fill="#e3d3b2" d="M176 236 L200 262 L224 236 L214 234 L200 250 L186 234 Z"/>
-    <path class="ln" fill="#f3e9d2" d="M146 248 Q126 256 120 290 L112 340 L116 400 H146 L148 345 L160 290 Z"/>
-    <path class="no" fill="#dccbaa" d="M121 292 L113 340 L117 398 H126 L124 345 L133 294 Z"/>
     <path class="ln" fill="#f3e9d2" d="M254 248 Q274 256 280 290 L290 345 L288 400 H258 L254 345 L240 290 Z"/>
     <path class="no" fill="#dccbaa" d="M279 292 L289 345 L287 398 H278 L278 345 L268 294 Z"/>
   </g>
@@ -114,11 +112,7 @@
     <path class="no" fill="#6b4226" d="M228 258 Q242 255 253 263 L255 330 L247 396 H226 L234 330 Z"/>
     <path d="M200 306 V390" fill="none" stroke="#b07c4f" stroke-width="2" stroke-dasharray="5 5"/>
     <path d="M152 330 Q200 342 248 330" fill="none" stroke="#6b4226" stroke-width="2.5"/>
-    <!-- shoulder pad -->
-    <path class="ln" fill="#8a5a36" d="M174 240 Q146 228 126 248 L128 276 Q150 280 170 272 Z"/>
-    <path class="no" fill="#6b4226" d="M146 238 Q134 241 127 250 L129 275 Q138 277 146 276 Z"/>
-    <circle cx="160" cy="254" r="2.8" fill="#d8b35a"/>
-    <circle cx="140" cy="252" r="2.8" fill="#d8b35a"/>
+    <!-- shoulder pad is part of the weapon-arm group -->
     <!-- hip guards -->
     <path class="ln" fill="#8a5a36" d="M150 408 L146 454 L176 460 L182 408 Z"/>
     <path class="ln" fill="#8a5a36" d="M250 408 L254 454 L224 460 L218 408 Z"/>
@@ -133,25 +127,45 @@
     <path class="ln" fill="#936540" d="M224 410 Q235 418 246 410 V406 Q246 402 242 402 H228 Q224 402 224 406 Z"/>
   </g>
 
-  <!-- ===== WEAPON: one-handed iron sword ===== -->
-  <g data-slot="weapon">
-    <path class="ln" fill="#c9d2dc" d="M114 474 L137 478 L105 692 L96 710 L92 690 Z"/>
-    <path class="no" fill="#eef3f7" d="M127 476 L136 478 L104 692 L100 700 Z"/>
-    <path d="M124 482 L100 680" fill="none" stroke="#9aa6b3" stroke-width="2" stroke-linecap="round"/>
-    <path class="ln" fill="#4a3325" d="M126 404 L137 406 L131 470 L120 468 Z"/>
-    <path class="ln" fill="#8a8f98" d="M100 456 L152 465 L150 476 L98 467 Z"/>
-    <circle class="ln" cx="132" cy="400" r="7" fill="#d8b35a"/>
+  <!-- ===== WEAPON ARM: sleeve + hand + sword + glove + shoulder pad, moves as one piece when attacking =====
+       data-part="weapon-arm" · data-shoulder = rotation center · data-tip = sword tip at rest (for the swing trail)
+       Inner groups keep their data-slot so unequipping weapon / armor still works. -->
+  <g data-part="weapon-arm" data-shoulder="140 262" data-tip="94 708">
+    <g data-slot="base">
+      <path class="ln" fill="#f6d7bf" d="M116 398 H144 L144 413 Q149 434 142 450 Q128 460 114 450 Q108 432 115 413 Z"/>
+    </g>
+    <g data-slot="costume">
+      <path class="ln" fill="#f3e9d2" d="M146 248 Q126 256 120 290 L112 340 L116 400 H146 L148 345 L160 290 Z"/>
+      <path class="no" fill="#dccbaa" d="M121 292 L113 340 L117 398 H126 L124 345 L133 294 Z"/>
+    </g>
+    <!-- one-handed iron sword · data-pivot = grip point in the hand -->
+    <g data-slot="weapon" data-pivot="128 437">
+      <path class="ln" fill="#c9d2dc" d="M114 474 L137 478 L105 692 L96 710 L92 690 Z"/>
+      <path class="no" fill="#eef3f7" d="M127 476 L136 478 L104 692 L100 700 Z"/>
+      <path d="M124 482 L100 680" fill="none" stroke="#9aa6b3" stroke-width="2" stroke-linecap="round"/>
+      <path class="ln" fill="#4a3325" d="M126 404 L137 406 L131 470 L120 468 Z"/>
+      <path class="ln" fill="#8a8f98" d="M100 456 L152 465 L150 476 L98 467 Z"/>
+      <circle class="ln" cx="132" cy="400" r="7" fill="#d8b35a"/>
+    </g>
+    <g data-slot="gloves">
+      <path class="ln" fill="#6e4a2e" d="M114 380 H146 L144 416 H116 Z"/>
+      <path class="no" fill="#533622" d="M116 382 H124 L124 414 H117 Z"/>
+      <path class="ln" fill="#6e4a2e" d="M115 413 Q108 432 114 450 Q128 460 142 450 Q149 434 144 413 Z"/>
+      <path class="thin" d="M116 426 H145"/>
+      <path class="thin" d="M114 438 H146"/>
+      <path class="ln" fill="#7d553a" d="M138 416 Q151 421 148 435 Q142 440 135 432 Z"/>
+    </g>
+    <g data-slot="armor">
+      <path class="ln" fill="#8a5a36" d="M174 240 Q146 228 126 248 L128 276 Q150 280 170 272 Z"/>
+      <path class="no" fill="#6b4226" d="M146 238 Q134 241 127 250 L129 275 Q138 277 146 276 Z"/>
+      <circle cx="160" cy="254" r="2.8" fill="#d8b35a"/>
+      <circle cx="140" cy="252" r="2.8" fill="#d8b35a"/>
+    </g>
   </g>
 
   <!-- ===== GLOVES ===== -->
   <g data-slot="gloves">
-    <!-- sword hand: fist around the grip + thumb on top -->
-    <path class="ln" fill="#6e4a2e" d="M114 380 H146 L144 416 H116 Z"/>
-    <path class="no" fill="#533622" d="M116 382 H124 L124 414 H117 Z"/>
-    <path class="ln" fill="#6e4a2e" d="M115 413 Q108 432 114 450 Q128 460 142 450 Q149 434 144 413 Z"/>
-    <path class="thin" d="M116 426 H145"/>
-    <path class="thin" d="M114 438 H146"/>
-    <path class="ln" fill="#7d553a" d="M138 416 Q151 421 148 435 Q142 440 135 432 Z"/>
+    <!-- sword-hand glove is part of the weapon-arm group -->
     <!-- relaxed hand -->
     <path class="ln" fill="#6e4a2e" d="M256 380 H288 L286 416 H258 Z"/>
     <path class="no" fill="#533622" d="M278 382 H286 L285 414 H278 Z"/>
