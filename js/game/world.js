@@ -6,7 +6,7 @@
 // ข้อดี: ทดสอบได้โดยไม่ต้องเปิดหน้าจอ และเปลี่ยนวิธีวาดได้โดยไม่กระทบกติกา
 //
 // updateWorld() คืน "events" ให้ main.js ใช้อัปเดตหน้าจอ / เซฟ / แจ้งเตือน
-//   { type: "kill" | "levelUp" | "pickup" | "playerDied" | "respawn", ... }
+//   { type: "kill" | "levelUp" | "pickup" | "playerDied" | "respawn" | "travel", ... }
 // =====================================================
 
 import { MAPS } from "../../data/maps.js";
@@ -31,7 +31,8 @@ export const WORLD_RULES = {
   magnetSpeed: 280,
   dropPopTime: 0.35,      // ของเพิ่งดรอปยังไม่ถูกดูด ให้เห็นว่ามันเด้งออกมา
   dropLifetime: 60,
-  leashExtra: 220         // มอนเตอร์ไล่ออกนอกโซนได้ไกลเท่านี้ แล้วเดินกลับ
+  leashExtra: 220,        // มอนเตอร์ไล่ออกนอกโซนได้ไกลเท่านี้ แล้วเดินกลับ
+  portalRadius: 36        // เดินเข้าใกล้ประตูวาร์ประยะนี้ = ย้ายแผนที่
 };
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -39,19 +40,22 @@ const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 // =====================================================
 // สร้างโลก
 // =====================================================
-export function createWorld(mapId, rng = Math.random) {
+// fromMapId = แผนที่ที่เพิ่งเดินผ่านประตูมา → เกิดข้างประตูฝั่งนั้น (ไม่ระบุ = เกิดที่จุดพัก)
+export function createWorld(mapId, rng = Math.random, fromMapId = null) {
   const map = MAPS[mapId];
   const stats = getPlayerStats();
+  const start = getArrivalPoint(map, fromMapId);
 
   const world = {
     map,
     rng,
     time: 0,
     nextId: 1,
+    travelTo: null,         // เดินเข้าประตูแล้ว รอ main.js ย้ายแผนที่
     obstacles: generateObstacles(map),
     player: {
-      x: map.spawn.x,
-      y: map.spawn.y,
+      x: start.x,
+      y: start.y,
       radius: stats.radius,
       hp: stats.maxHp,
       facing: { x: 1, y: 0 },
@@ -80,6 +84,18 @@ export function createWorld(mapId, rng = Math.random) {
   return world;
 }
 
+// ยืนห่างจากประตูกลับไปทางจุดพัก พ้นระยะวาร์ป จะได้ไม่เด้งกลับทันที
+function getArrivalPoint(map, fromMapId) {
+  const portal = map.portals.find((p) => p.to === fromMapId);
+  if (!portal) return { x: map.spawn.x, y: map.spawn.y };
+
+  const dx = map.spawn.x - portal.x;
+  const dy = map.spawn.y - portal.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const step = WORLD_RULES.portalRadius + 60;
+  return { x: portal.x + (dx / dist) * step, y: portal.y + (dy / dist) * step };
+}
+
 // ต้นไม้/หินสุ่มจาก seed ของแผนที่ → ได้ตำแหน่งเดิมทุกครั้ง
 function generateObstacles(map) {
   const rng = createRng(map.obstacleSeed);
@@ -93,9 +109,10 @@ function generateObstacles(map) {
 
       const nearSpawn = Math.hypot(x - map.spawn.x, y - map.spawn.y) < map.safeRadius + radius + 40;
       const nearZoneCenter = map.zones.some((zone) => Math.hypot(x - zone.x, y - zone.y) < 110);
+      const nearPortal = map.portals.some((p) => Math.hypot(x - p.x, y - p.y) < WORLD_RULES.portalRadius + radius + 120);
       const overlaps = obstacles.some((o) => Math.hypot(x - o.x, y - o.y) < o.radius + radius + 30);
 
-      if (!nearSpawn && !nearZoneCenter && !overlaps) {
+      if (!nearSpawn && !nearZoneCenter && !nearPortal && !overlaps) {
         obstacles.push({ type, x, y, radius });
         return;
       }
@@ -237,6 +254,13 @@ function updatePlayer(world, input, stats, dt) {
     player.walkTime += dt;
   }
 
+  // เดินเข้าประตูวาร์ป → แจ้ง main.js ครั้งเดียว แล้วรอย้ายแผนที่
+  const portal = world.map.portals.find((p) => Math.hypot(player.x - p.x, player.y - p.y) < WORLD_RULES.portalRadius);
+  if (portal && !world.travelTo) {
+    world.travelTo = portal.to;
+    world.events.push({ type: "travel", from: world.map.id, to: portal.to });
+  }
+
   // ฟื้นเลือด (ในเขตปลอดภัยฟื้นเร็ว)
   const inSafeZone = isInSafeZone(world, player.x, player.y);
   if (inSafeZone || world.time - player.lastHurtAt > WORLD_RULES.regenDelay) {
@@ -331,7 +355,7 @@ function killMonster(world, monster) {
 
   const levelsGained = addPlayerExp(def.exp);
   addEffect(world, { text: "+" + def.exp + " EXP", x: monster.x, y: monster.y - monster.radius - 18, color: "#a7e9ff" });
-  world.events.push({ type: "kill", monsterId: monster.defId, exp: def.exp });
+  world.events.push({ type: "kill", monsterId: monster.defId, exp: def.exp, boss: Boolean(def.boss) });
 
   if (levelsGained > 0) {
     world.player.hp = getPlayerStats().maxHp;

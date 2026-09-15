@@ -3,8 +3,8 @@
 // รวมการควบคุมทุกแบบ เป็นค่าเดียวที่โลกในเกมอ่าน:
 //   { moveX, moveY, attack }   moveX/moveY อยู่ระหว่าง -1 ถึง 1
 //
-// คอม:    WASD / ลูกศร = เดิน   Space / J = โจมตี
-// มือถือ: จอยสติ๊กซ้ายล่าง = เดิน   ปุ่มขวาล่าง = โจมตี
+// คอม:    WASD / ลูกศร = เดิน   คลิกซ้ายบนแผนที่ / Space / J = โจมตี
+// มือถือ: จอยสติ๊กซ้ายล่าง = เดิน   แตะแผนที่ = โจมตี
 // =====================================================
 
 const keys = new Set();
@@ -29,7 +29,7 @@ export function clearInput() {
   attackHeld = false;
 }
 
-export function initInput({ joystickEl, knobEl, attackButton }) {
+export function initInput({ joystickEl, knobEl, attackArea }) {
   window.addEventListener("keydown", (event) => {
     if (isTyping(event)) return;
     keys.add(event.code);
@@ -77,14 +77,15 @@ export function initInput({ joystickEl, knobEl, attackButton }) {
   joystickEl.addEventListener("pointerup", releaseJoystick);
   joystickEl.addEventListener("pointercancel", releaseJoystick);
 
-  // ---------- ปุ่มโจมตี (กดค้าง = ตีต่อเนื่อง) ----------
-  attackButton.addEventListener("pointerdown", (event) => {
+  // ---------- โจมตี: คลิกซ้าย / แตะบนแผนที่ (กดค้าง = ตีต่อเนื่อง) ----------
+  attackArea.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     attackHeld = true;
-    attackButton.setPointerCapture(event.pointerId);
+    attackArea.setPointerCapture(event.pointerId);
   });
   for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
-    attackButton.addEventListener(type, () => (attackHeld = false));
+    attackArea.addEventListener(type, () => (attackHeld = false));
   }
 }
 

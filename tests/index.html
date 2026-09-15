@@ -26,8 +26,10 @@
     import { upgradeEquipment, getUpgradeCost, MAX_PLUS } from "../js/systems/upgrade.js";
     import { rollLoot } from "../js/systems/loot.js";
     import { createRng } from "../js/systems/rng.js";
-    import { createWorld, updateWorld, isInSafeZone } from "../js/game/world.js";
+    import { createWorld, updateWorld, isInSafeZone, WORLD_RULES } from "../js/game/world.js";
     import { MONSTERS } from "../data/monsters.js";
+    import { MAPS, START_MAP_ID } from "../data/maps.js";
+    import { ITEMS } from "../data/items.js";
 
     const lines = [];
     const log = (status, text) => lines.push(`${status} ${text}`);
@@ -134,7 +136,7 @@
         lastSavedAt: 1
       }));
       assert(loadGame(), "load");
-      assert(state.version === 3 && state.profile === null, "version/profile");
+      assert(state.version === 3 && state.profile === null && state.mapId === START_MAP_ID, "version/profile/map");
       assert(state.player.level === 4 && state.player.gold === 777 && !("energy" in state.player), JSON.stringify(state.player));
       assert(!("characters" in state), "characters removed");
       assert(JSON.parse(localStorage.getItem("herofarm_save_backup")).version === 2, "backup");
@@ -163,7 +165,8 @@
           ]
         },
         equipped: { weapon: 1, armor: 1 },
-        nextUid: 2
+        nextUid: 2,
+        mapId: "constructor"
       }));
       assert(loadGame(), "load");
       assert(state.profile.name === "Hero", "trim name");
@@ -171,6 +174,7 @@
       assert(JSON.stringify(state.inventory.materials) === '{"enhance_stone":3}', JSON.stringify(state.inventory.materials));
       assert(state.inventory.equipment.length === 1 && state.inventory.equipment[0].plus === MAX_PLUS, "equipment");
       assert(state.equipped.weapon === 1 && state.equipped.armor === null, JSON.stringify(state.equipped));
+      assert(state.mapId === START_MAP_ID, "mapId " + state.mapId);
     });
 
     // =====================================================
@@ -178,23 +182,69 @@
     // =====================================================
     await test("แผนที่สุ่มสิ่งกีดขวางได้ตำแหน่งเดิมทุกครั้ง", () => {
       freshCharacter();
-      const a = createWorld("meadow", createRng(1));
-      const b = createWorld("meadow", createRng(2));
+      const a = createWorld(START_MAP_ID, createRng(1));
+      const b = createWorld(START_MAP_ID, createRng(2));
       assert(a.obstacles.length > 40 && JSON.stringify(a.obstacles) === JSON.stringify(b.obstacles), "obstacles");
     });
 
+    await test("ข้อมูลแผนที่: มอนเตอร์/ไอเทมมีจริง และประตูไป-กลับครบ", () => {
+      for (const map of Object.values(MAPS)) {
+        for (const zone of map.zones) assert(MONSTERS[zone.monsterId], `${map.id}: ไม่มีมอนเตอร์ ${zone.monsterId}`);
+        for (const portal of map.portals) {
+          assert(MAPS[portal.to], `${map.id}: ประตูไปแผนที่ ${portal.to} ที่ไม่มีอยู่`);
+          assert(MAPS[portal.to].portals.some((back) => back.to === map.id), `${portal.to}: ไม่มีประตูกลับ ${map.id}`);
+        }
+      }
+      for (const [id, monster] of Object.entries(MONSTERS)) {
+        assert(Object.values(MAPS).some((map) => map.zones.some((zone) => zone.monsterId === id)), `มอนเตอร์ ${id} ไม่อยู่แผนที่ไหนเลย`);
+        for (const drop of monster.drops) assert(ITEMS[drop.itemId], `${id}: ไม่มีไอเทม ${drop.itemId}`);
+      }
+    });
+
+    await test("เดินเข้าประตู → ย้ายแผนที่ แล้วเกิดข้างประตูฝั่งที่มา", () => {
+      freshCharacter();
+      const world = createWorld(START_MAP_ID, createRng(1));
+      const portal = world.map.portals[0];
+      world.player.x = portal.x;
+      world.player.y = portal.y;
+      const idle = { moveX: 0, moveY: 0, attack: false };
+
+      const travel = updateWorld(world, idle, 1 / 30).find((event) => event.type === "travel");
+      assert(travel && travel.to === portal.to && travel.from === START_MAP_ID, "travel " + JSON.stringify(travel));
+      assert(!updateWorld(world, idle, 1 / 30).some((event) => event.type === "travel"), "ส่ง travel ซ้ำ");
+
+      const next = createWorld(portal.to, createRng(1), START_MAP_ID);
+      const back = next.map.portals.find((p) => p.to === START_MAP_ID);
+      const gap = Math.hypot(next.player.x - back.x, next.player.y - back.y);
+      assert(gap > WORLD_RULES.portalRadius && gap < 150, "ระยะจากประตู " + gap);
+    });
+
     // บอทง่ายๆ: เดินเข้าหามอนเตอร์ชนิดที่กำหนดแล้วตี
-    function runBot(world, monsterId, seconds) {
+    // rest = true → เลือดต่ำกว่า 35% ถอยกลับไปพักที่จุดพักจนเหลือ 90% (เล่นแบบคนทั่วไป)
+    function runBot(world, monsterId, seconds, { rest = false } = {}) {
       const stats = { kills: 0, pickups: 0, deaths: 0, maxSafeViolation: 0 };
       const dt = 1 / 30;
+      let resting = false;
 
       for (let t = 0; t < seconds; t += dt) {
         const player = world.player;
         const targets = world.monsters.filter((m) => !m.dead && m.defId === monsterId);
         const target = targets.sort((m1, m2) => Math.hypot(m1.x - player.x, m1.y - player.y) - Math.hypot(m2.x - player.x, m2.y - player.y))[0];
 
+        const maxHp = getPlayerStats().maxHp;
+        if (rest && player.hp < maxHp * 0.35) resting = true;
+        if (resting && player.hp >= maxHp * 0.9) resting = false;
+
         const input = { moveX: 0, moveY: 0, attack: false };
-        if (target) {
+        if (resting) {
+          const dx = world.map.spawn.x - player.x;
+          const dy = world.map.spawn.y - player.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 20) {
+            input.moveX = dx / dist;
+            input.moveY = dy / dist;
+          }
+        } else if (target) {
           const dx = target.x - player.x;
           const dy = target.y - player.y;
           const dist = Math.hypot(dx, dy);
@@ -220,35 +270,73 @@
       return stats;
     }
 
-    await test("จำลองเล่น 3 นาที: ตีสไลม์ได้ของและเลเวลขึ้น", () => {
-      freshCharacter();
-      const world = createWorld("meadow", createRng(7));
-      const gold = state.player.gold;
-      const result = runBot(world, "slime", 180);
+    await test("จำลองเล่น 3 นาที: ตีสไลม์ได้ของและเลเวลขึ้น (ถอยไปพักเมื่อเลือดน้อย)", () => {
+      for (const seed of [7, 8, 9]) {
+        freshCharacter();
+        const world = createWorld(START_MAP_ID, createRng(seed));
+        const gold = state.player.gold;
+        const result = runBot(world, "slime", 180, { rest: true });
 
-      log("INFO", `  สไลม์ 3 นาที: ฆ่า ${result.kills} ตัว, เก็บของ ${result.pickups} ครั้ง, ตาย ${result.deaths}, Lv.${state.player.level}, ทอง +${state.player.gold - gold}, ไอเทม ${JSON.stringify(state.inventory.materials)}`);
-      assert(result.kills >= 10, "kills " + result.kills);
-      assert(result.pickups >= result.kills, "pickups " + result.pickups);
-      assert(result.deaths === 0, "Lv.1 ไม่ควรตายให้สไลม์");
-      assert(state.player.level >= 2 && state.player.gold > gold, "progress");
-      assert(result.maxSafeViolation === 0, "monster entered safe zone");
+        log("INFO", `  สไลม์ 3 นาที seed ${seed}: ฆ่า ${result.kills} ตัว, เก็บของ ${result.pickups} ครั้ง, ตาย ${result.deaths}, Lv.${state.player.level}, ทอง +${state.player.gold - gold}, ไอเทม ${JSON.stringify(state.inventory.materials)}`);
+        assert(result.kills >= 10, `seed ${seed} kills ${result.kills}`);
+        assert(result.pickups >= result.kills, `seed ${seed} pickups ${result.pickups}`);
+        assert(result.deaths === 0, `seed ${seed}: Lv.1 ที่รู้จักพักไม่ควรตายให้สไลม์`);
+        assert(state.player.level >= 2 && state.player.gold > gold, `seed ${seed} progress`);
+        assert(result.maxSafeViolation === 0, `seed ${seed} monster entered safe zone`);
+      }
+
+      // ข้อมูลประกอบ: บอทที่ตีไม่หยุดเลย (ไม่นับเป็นผ่าน/ไม่ผ่าน)
+      freshCharacter();
+      const reckless = runBot(createWorld(START_MAP_ID, createRng(7)), "slime", 180);
+      log("INFO", `  สไลม์ 3 นาที ตีไม่พักเลย: ฆ่า ${reckless.kills} ตาย ${reckless.deaths}`);
     });
 
-    await test("สมดุล: Lv.1 สู้โกเลมไม่ไหว / Lv.10 + ของดีสู้ได้", () => {
+    await test("สมดุล: Lv.1 สู้แมงป่องไม่ไหว / Lv.10 + ของดีสู้ได้", () => {
       freshCharacter();
-      let world = createWorld("meadow", createRng(3));
-      const weak = runBot(world, "golem", 60);
+      let world = createWorld("desert", createRng(3));
+      const weak = runBot(world, "scorpion", 60);
 
       freshCharacter();
       state.player.level = 10;
       equip(addEquipment("iron_sword", 5).uid);
       equip(addEquipment("leather_armor", 5).uid);
-      world = createWorld("meadow", createRng(3));
-      const strong = runBot(world, "golem", 60);
+      world = createWorld("desert", createRng(3));
+      const strong = runBot(world, "scorpion", 60);
 
-      log("INFO", `  โกเลม 1 นาที: Lv.1 ของเริ่มต้น ฆ่า ${weak.kills} ตาย ${weak.deaths} | Lv.10 ดาบ+5 เกราะ+5 ฆ่า ${strong.kills} ตาย ${strong.deaths}`);
-      assert(weak.deaths >= 1, "Lv.1 ควรแพ้โกเลม");
-      assert(strong.kills >= 2, "Lv.10 ควรชนะโกเลม");
+      log("INFO", `  แมงป่อง 1 นาที: Lv.1 ของเริ่มต้น ฆ่า ${weak.kills} ตาย ${weak.deaths} | Lv.10 ดาบ+5 เกราะ+5 ฆ่า ${strong.kills} ตาย ${strong.deaths}`);
+      assert(weak.deaths >= 1, "Lv.1 ควรแพ้แมงป่อง");
+      assert(strong.kills >= 2, "Lv.10 ควรชนะแมงป่อง");
+    });
+
+    await test("บอส: Lv.1 สู้ไม่ไหว / Lv.15 + ของดีล้มผู้พิทักษ์ป่าได้", () => {
+      freshCharacter();
+      let world = createWorld("guardian_grove", createRng(5));
+      const weak = runBot(world, "forest_guardian", 60);
+
+      freshCharacter();
+      state.player.level = 15;
+      equip(addEquipment("desert_blade", 5).uid);
+      equip(addEquipment("sand_armor", 5).uid);
+      world = createWorld("guardian_grove", createRng(5));
+      const strong = runBot(world, "forest_guardian", 90);
+
+      log("INFO", `  บอส 1.5 นาที: Lv.1 ฆ่า ${weak.kills} ตาย ${weak.deaths} | Lv.15 ตรีศูล+5 เกราะทราย+5 ฆ่า ${strong.kills} ตาย ${strong.deaths}`);
+      assert(weak.deaths >= 1 && weak.kills === 0, "Lv.1 ควรแพ้บอส");
+      assert(strong.kills >= 1, "Lv.15 ของดีควรล้มบอสได้");
+    });
+
+    await test("สมดุลรายมอนเตอร์ (เลเวลแนะนำ + ของเริ่มต้น)", () => {
+      const summary = [];
+      for (const map of Object.values(MAPS)) {
+        for (const monsterId of new Set(map.zones.map((zone) => zone.monsterId))) {
+          const monster = MONSTERS[monsterId];
+          freshCharacter();
+          state.player.level = monster.level;
+          const result = runBot(createWorld(map.id, createRng(11)), monsterId, 60);
+          summary.push(`${monster.icon}Lv.${monster.level} ฆ่า ${result.kills} ตาย ${result.deaths}`);
+        }
+      }
+      log("INFO", "  1 นาทีที่เลเวลแนะนำ: " + summary.join(" | "));
     });
 
     // =====================================================
@@ -329,6 +417,26 @@
       assert(doc.getElementById("create-screen").hidden, "ผู้เล่นเดิมไม่ต้องสร้างตัวละครซ้ำ");
       const saved = game.state.inventory.equipment.find((item) => item.uid === game.state.equipped.weapon);
       assert(saved.plus === 1 && game.state.player.gold === 4960, "เซฟตีบวกคงอยู่");
+
+      // ไม่มีปุ่มโจมตีบนจอ — คลิกซ้ายบนแผนที่ = ตี, คลิกขวาไม่ตี
+      assert(!doc.getElementById("attack-btn"), "ต้องไม่มีปุ่มโจมตีบนจอ");
+      const canvas = doc.getElementById("world-canvas");
+      const slime = game.world.monsters.find((monster) => !monster.dead && monster.defId === "slime");
+      game.world.player.x = slime.x - (game.world.player.radius + slime.radius + 5);
+      game.world.player.y = slime.y;
+      const click = (button) => {
+        const pointer = { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: "mouse", button };
+        canvas.dispatchEvent(new frame2.contentWindow.PointerEvent("pointerdown", pointer));
+        return sleep(150).then(() => canvas.dispatchEvent(new frame2.contentWindow.PointerEvent("pointerup", pointer)));
+      };
+
+      let slimeHp = slime.hp;
+      await click(2);
+      assert(slime.hp === slimeHp, `คลิกขวาต้องไม่ตี ${slimeHp} → ${slime.hp}`);
+      await sleep(500);
+      slimeHp = slime.hp;
+      await click(0);
+      assert(slime.hp < slimeHp, `คลิกซ้ายบนแผนที่ต้องตีโดน ${slimeHp} → ${slime.hp}`);
       frame2.remove();
     });
 

@@ -8,7 +8,7 @@
 
 import { state, CONFIG } from "./state.js";
 import { loadGame, saveGame, saveIfDirty, markDirty } from "./save.js";
-import { START_MAP_ID } from "../data/maps.js";
+import { MAPS } from "../data/maps.js";
 import { ITEMS } from "../data/items.js";
 import { MONSTERS } from "../data/monsters.js";
 import { createWorld, updateWorld } from "./game/world.js";
@@ -33,7 +33,7 @@ function start() {
   initInput({
     joystickEl: $("joystick"),
     knobEl: $("joystick-knob"),
-    attackButton: $("attack-btn")
+    attackArea: $("world-canvas")
   });
 
   initPanels({
@@ -68,9 +68,17 @@ function beginGame(hasSave) {
   if (hasSave) showToast("ยินดีต้อนรับกลับมา " + state.profile.name);
 }
 
-function enterWorld() {
-  world = createWorld(START_MAP_ID);
+// fromMapId = เพิ่งเดินผ่านประตูมาจากแผนที่ไหน (เกิดข้างประตูฝั่งนั้น)
+function enterWorld(fromMapId = null) {
+  world = createWorld(state.mapId, Math.random, fromMapId);
   renderer.resize();
+}
+
+function travel(event) {
+  state.mapId = event.to;
+  enterWorld(event.from);
+  saveGame();
+  showToast("🌀 เข้าสู่ " + MAPS[event.to].name);
 }
 
 function loop(now) {
@@ -90,10 +98,20 @@ function loop(now) {
 }
 
 function handleEvents(events) {
+  let travelEvent = null;
+
   for (const event of events) {
     switch (event.type) {
       case "kill":
         markDirty();
+        if (event.boss) {
+          showToast("👑 ปราบ " + MONSTERS[event.monsterId].name + " สำเร็จ!");
+          saveGame();
+        }
+        break;
+
+      case "travel":
+        travelEvent = event;
         break;
 
       case "pickup":
@@ -114,6 +132,9 @@ function handleEvents(events) {
         break;
     }
   }
+
+  // ย้ายแผนที่ทำหลังสุด — event อื่นในเฟรมนี้เป็นของแผนที่เดิม
+  if (travelEvent) travel(travelEvent);
 }
 
 // ให้หน้าทดสอบ (tests/) และ DevTools ส่องสถานะเกมได้ — ไม่มีผลกับการเล่น

@@ -8,6 +8,7 @@
 
 import { state, replaceState, createNewState, CONFIG } from "./state.js";
 import { ITEMS, EQUIPMENT_SLOTS } from "../data/items.js";
+import { MAPS } from "../data/maps.js";
 import { MAX_PLUS } from "./systems/upgrade.js";
 
 const SAVE_KEY = "herofarm_save";
@@ -118,6 +119,8 @@ function sanitize(save) {
     player,
     inventory: { materials, equipment },
     equipped,
+    // แผนที่ที่ไม่มีในเกมแล้ว (หรือเซฟเก่าที่ยังไม่มีค่านี้) → กลับแผนที่เริ่มต้น
+    mapId: Object.hasOwn(MAPS, save.mapId) ? save.mapId : fresh.mapId,
     nextUid: Math.max(maxUid + 1, Math.floor(toNumber(save.nextUid, 1, 1))),
     lastSavedAt: save.lastSavedAt ?? null
   };

@@ -174,6 +174,13 @@ button {
   font-size: 8px;
 }
 
+.hud-map {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
 /* ---------- แผนที่ ---------- */
 .world-view {
   position: relative;
@@ -215,29 +222,10 @@ button {
   pointer-events: none;
 }
 
-.attack-button {
-  position: absolute;
-  right: 22px;
-  bottom: 26px;
-  width: 92px;
-  height: 92px;
-  border: none;
-  border-radius: 50%;
-  font-size: 40px;
-  background: linear-gradient(180deg, #ff9d6c, var(--red));
-  box-shadow: 0 5px 0 var(--red-dark), 0 8px 16px rgba(0, 0, 0, 0.3);
-  touch-action: none;
-}
-
-.attack-button:active {
-  transform: translateY(4px);
-  box-shadow: 0 1px 0 var(--red-dark);
-}
-
-/* คอมที่มีเมาส์และไม่มีจอสัมผัส ใช้คีย์บอร์ดแทน ซ่อนปุ่มบนจอ */
+/* คอมที่มีเมาส์และไม่มีจอสัมผัส: เดินด้วยคีย์บอร์ด ซ่อนจอยสติ๊ก
+   (โจมตีด้วยการคลิกบนแผนที่ ไม่มีปุ่มโจมตีบนจอ) */
 @media (hover: hover) and (pointer: fine) {
-  .joystick,
-  .attack-button {
+  .joystick {
     display: none;
   }
 }

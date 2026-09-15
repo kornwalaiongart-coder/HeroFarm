@@ -19,13 +19,14 @@ export function renderHud(world) {
   const hp = Math.ceil(world.player.hp);
   const respawnIn = world.player.dead ? Math.ceil(world.player.respawnTimer) : -1;
 
-  const key = [state.profile?.name, player.level, player.exp, player.gold, player.gem, hp, stats.maxHp, respawnIn].join("|");
+  const key = [state.profile?.name, world.map.name, player.level, player.exp, player.gold, player.gem, hp, stats.maxHp, respawnIn].join("|");
   if (key === lastKey) return;
   lastKey = key;
 
   const expNeeded = getPlayerExpNeeded(player.level);
 
   $("ui-name").textContent = state.profile?.name ?? "";
+  $("ui-map").textContent = world.map.name;
   $("ui-level").textContent = player.level;
   $("ui-gold").textContent = formatNumber(player.gold);
   $("ui-gem").textContent = formatNumber(player.gem);

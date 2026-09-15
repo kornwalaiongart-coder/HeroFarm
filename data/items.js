@@ -24,6 +24,11 @@ export const ITEMS = {
   // ---------- วัตถุดิบ ----------
   slime_jelly: { type: "material", name: "เจลสไลม์", icon: "🟢", rarity: "common", sellPrice: 2 },
   wolf_fang: { type: "material", name: "เขี้ยวหมาป่า", icon: "🦷", rarity: "common", sellPrice: 6 },
+  goblin_ear: { type: "material", name: "หูก๊อบลิน", icon: "👂", rarity: "common", sellPrice: 8 },
+  bat_wing: { type: "material", name: "ปีกค้างคาว", icon: "🪶", rarity: "common", sellPrice: 10 },
+  scorpion_stinger: { type: "material", name: "เหล็กในแมงป่อง", icon: "🪡", rarity: "rare", sellPrice: 25 },
+  guardian_heart: { type: "material", name: "หัวใจผู้พิทักษ์", icon: "💚", rarity: "epic", sellPrice: 200 },
+  // ของจากโกเลม (ไม่ดรอปแล้ว คงไว้ให้เซฟเดิมไม่หาย)
   golem_core: { type: "material", name: "แกนโกเลม", icon: "🔶", rarity: "rare", sellPrice: 20 },
   enhance_stone: { type: "material", name: "หินตีบวก", icon: "💠", rarity: "rare", sellPrice: 10 },
 
@@ -40,6 +45,14 @@ export const ITEMS = {
     type: "equipment", slot: "weapon", name: "ค้อนหินโกเลม", icon: "🔨", rarity: "epic",
     atk: 26, atkPerPlus: 5, sellPrice: 150
   },
+  desert_blade: {
+    type: "equipment", slot: "weapon", name: "ตรีศูลทะเลทราย", icon: "🔱", rarity: "epic",
+    atk: 30, atkPerPlus: 5, sellPrice: 180
+  },
+  guardian_axe: {
+    type: "equipment", slot: "weapon", name: "ขวานผู้พิทักษ์", icon: "🪓", rarity: "epic",
+    atk: 45, atkPerPlus: 7, sellPrice: 400
+  },
 
   // ---------- เกราะ ----------
   cloth_armor: {
@@ -53,6 +66,14 @@ export const ITEMS = {
   stone_armor: {
     type: "equipment", slot: "armor", name: "เกราะหินโกเลม", icon: "🛡️", rarity: "epic",
     def: 14, hp: 80, defPerPlus: 3, hpPerPlus: 25, sellPrice: 150
+  },
+  sand_armor: {
+    type: "equipment", slot: "armor", name: "เกราะเกล็ดทราย", icon: "🧥", rarity: "epic",
+    def: 16, hp: 90, defPerPlus: 3, hpPerPlus: 20, sellPrice: 180
+  },
+  guardian_armor: {
+    type: "equipment", slot: "armor", name: "เกราะเปลือกไม้ศักดิ์สิทธิ์", icon: "🥋", rarity: "epic",
+    def: 24, hp: 150, defPerPlus: 4, hpPerPlus: 35, sellPrice: 400
   }
 };
 

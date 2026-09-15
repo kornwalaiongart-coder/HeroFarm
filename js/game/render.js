@@ -7,9 +7,30 @@
 // =====================================================
 
 import { ITEMS, RARITY } from "../../data/items.js";
+import { MAPS } from "../../data/maps.js";
 import { WORLD_RULES } from "./world.js";
 
 const TILE = 80;
+
+// สีของแต่ละธีมแผนที่ (map.theme)   tufts = ลายพื้นเป็นพุ่มหญ้า (ไม่งั้นเป็นก้อนกรวด)
+const THEMES = {
+  grass: {
+    border: "#4b7a3a", ground: "#8fcf6a", alt: "#86c562", detail: "#5f9e45", tufts: true,
+    trunk: "#7a5230", tree: "#3f8a3a", treeLight: "#56a84a", rock: "#8d8a86", rockLight: "#b3afa9"
+  },
+  forest: {
+    border: "#1f3a1c", ground: "#5a9444", alt: "#548c3f", detail: "#3d6e2e", tufts: true,
+    trunk: "#5e3d22", tree: "#2a6a2e", treeLight: "#3f873c", rock: "#7a7670", rockLight: "#9d9890"
+  },
+  cave: {
+    border: "#120e16", ground: "#4b4452", alt: "#463f4d", detail: "#3a3440", tufts: false,
+    trunk: "#4a3a2a", tree: "#3b3444", treeLight: "#4d4558", rock: "#6d6378", rockLight: "#90859e"
+  },
+  desert: {
+    border: "#a97c40", ground: "#e9cb8c", alt: "#e3c281", detail: "#c9a263", tufts: false,
+    trunk: "#7a5230", tree: "#5f9b4a", treeLight: "#79b760", rock: "#b08a5f", rockLight: "#d0ad82"
+  }
+};
 
 const PLAYER_LOOK = {
   male: { shirt: "#4f7bd9", shirtDark: "#3a5fb0", hair: "#5b3a1e" },
@@ -39,14 +60,16 @@ export function createRenderer(canvas) {
     ctx.clearRect(0, 0, view.width, view.height);
     ctx.translate(-camera.x, -camera.y);
 
-    drawGround(ctx, world, camera, view);
+    const theme = THEMES[world.map.theme] ?? THEMES.grass;
+    drawGround(ctx, world, camera, view, theme);
     drawSafeZone(ctx, world);
+    drawPortals(ctx, world);
     drawZoneLabels(ctx, world);
     for (const drop of world.drops) drawDrop(ctx, drop);
 
     // วาดตามแกน y: อะไรอยู่ต่ำกว่าบนจอ บังสิ่งที่อยู่สูงกว่า
     const sprites = [
-      ...world.obstacles.map((o) => ({ y: o.y, draw: () => drawObstacle(ctx, o) })),
+      ...world.obstacles.map((o) => ({ y: o.y, draw: () => drawObstacle(ctx, o, theme) })),
       ...world.monsters.filter((m) => !m.dead).map((m) => ({ y: m.y, draw: () => drawMonster(ctx, m, world.time) })),
       { y: world.player.y, draw: () => drawPlayer(ctx, world.player, profile) }
     ].sort((a, b) => a.y - b.y);
@@ -71,11 +94,11 @@ function getCamera(world, view) {
 }
 
 // ---------- พื้น ----------
-function drawGround(ctx, world, camera, view) {
+function drawGround(ctx, world, camera, view, theme) {
   const { map } = world;
-  ctx.fillStyle = "#4b7a3a";
+  ctx.fillStyle = theme.border;
   ctx.fillRect(camera.x, camera.y, view.width, view.height);
-  ctx.fillStyle = map.groundColor;
+  ctx.fillStyle = theme.ground;
   ctx.fillRect(0, 0, map.width, map.height);
 
   // วาดเฉพาะช่องที่อยู่ในจอ
@@ -88,20 +111,28 @@ function drawGround(ctx, world, camera, view) {
     for (let ty = startY; ty < endY; ty++) {
       const hash = (tx * 73856093) ^ (ty * 19349663);
       if ((tx + ty) % 2 === 0) {
-        ctx.fillStyle = map.groundAltColor;
+        ctx.fillStyle = theme.alt;
         ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
       }
-      // พุ่มหญ้าเล็กๆ ตำแหน่งคงที่ต่อช่อง
+      // ลายพื้นเล็กๆ ตำแหน่งคงที่ต่อช่อง: พุ่มหญ้า หรือ ก้อนกรวด
       if ((hash & 3) === 0) {
         const gx = tx * TILE + (hash >>> 4) % 60 + 10;
         const gy = ty * TILE + (hash >>> 10) % 60 + 10;
-        ctx.strokeStyle = "#5f9e45";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(gx - 4, gy); ctx.lineTo(gx - 6, gy - 7);
-        ctx.moveTo(gx, gy); ctx.lineTo(gx, gy - 9);
-        ctx.moveTo(gx + 4, gy); ctx.lineTo(gx + 6, gy - 7);
-        ctx.stroke();
+        if (theme.tufts) {
+          ctx.strokeStyle = theme.detail;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(gx - 4, gy); ctx.lineTo(gx - 6, gy - 7);
+          ctx.moveTo(gx, gy); ctx.lineTo(gx, gy - 9);
+          ctx.moveTo(gx + 4, gy); ctx.lineTo(gx + 6, gy - 7);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = theme.detail;
+          ctx.beginPath();
+          ctx.ellipse(gx, gy, 5, 3, 0, 0, Math.PI * 2);
+          ctx.ellipse(gx + 9, gy + 4, 3, 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
   }
@@ -130,6 +161,41 @@ function drawZoneLabels(ctx, world) {
   }
 }
 
+// ---------- ประตูวาร์ป ----------
+function drawPortals(ctx, world) {
+  const radius = WORLD_RULES.portalRadius;
+
+  for (const portal of world.map.portals) {
+    const target = MAPS[portal.to];
+    const pulse = radius * (1 + Math.sin(world.time * 3) * 0.08);
+
+    const glow = ctx.createRadialGradient(portal.x, portal.y, 4, portal.x, portal.y, pulse);
+    glow.addColorStop(0, "#ffffffee");
+    glow.addColorStop(0.45, "#b38cffcc");
+    glow.addColorStop(1, "#6a3fd400");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(portal.x, portal.y, pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // เส้นประหมุนรอบประตู
+    ctx.strokeStyle = "#e3d4ff";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.lineDashOffset = -world.time * 20;
+    ctx.beginPath();
+    ctx.arc(portal.x, portal.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+
+    // ประตูชิดขอบแผนที่ → ขยับป้ายเข้ามาไม่ให้ตกขอบ
+    const labelX = Math.min(world.map.width - 90, Math.max(90, portal.x));
+    drawLabel(ctx, "🌀 " + target.name, labelX, portal.y - radius - 26, "#fff8ea", 13);
+    drawLabel(ctx, "แนะนำ Lv." + target.level + "+", labelX, portal.y - radius - 10, "#e3d4ff", 11);
+  }
+}
+
 function drawLabel(ctx, text, x, y, color, size) {
   ctx.font = `800 ${size}px "Baloo 2", "Nunito", sans-serif`;
   ctx.textAlign = "center";
@@ -149,27 +215,27 @@ function drawShadow(ctx, x, y, radius) {
 }
 
 // ---------- ต้นไม้ / หิน ----------
-function drawObstacle(ctx, obstacle) {
+function drawObstacle(ctx, obstacle, theme) {
   const { x, y, radius } = obstacle;
   drawShadow(ctx, x, y, radius);
 
   if (obstacle.type === "tree") {
-    ctx.fillStyle = "#7a5230";
+    ctx.fillStyle = theme.trunk;
     ctx.fillRect(x - radius * 0.2, y - radius * 0.2, radius * 0.4, radius);
-    ctx.fillStyle = "#3f8a3a";
+    ctx.fillStyle = theme.tree;
     ctx.beginPath();
     ctx.arc(x, y - radius * 0.7, radius, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#56a84a";
+    ctx.fillStyle = theme.treeLight;
     ctx.beginPath();
     ctx.arc(x - radius * 0.3, y - radius, radius * 0.55, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    ctx.fillStyle = "#8d8a86";
+    ctx.fillStyle = theme.rock;
     ctx.beginPath();
     ctx.ellipse(x, y, radius, radius * 0.75, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#b3afa9";
+    ctx.fillStyle = theme.rockLight;
     ctx.beginPath();
     ctx.ellipse(x - radius * 0.3, y - radius * 0.25, radius * 0.4, radius * 0.25, -0.4, 0, Math.PI * 2);
     ctx.fill();
@@ -181,42 +247,38 @@ function drawMonster(ctx, monster, time) {
   const { x, y, radius, def } = monster;
   drawShadow(ctx, x, y, radius);
 
-  // สไลม์เด้งดึ๋ง / ตัวอื่นขยับเล็กน้อย / พุ่งตอนโจมตี
-  const bounce = monster.defId === "slime" ? Math.sin(time * 6 + monster.id) * 0.08 : 0;
-  const lunge = monster.lungeTimer > 0 ? 1.12 : 1;
+  // ขยับขึ้นลงเบาๆ (สไลม์เด้งแรงกว่า) / ค้างคาวบินลอย / พุ่งตอนโจมตี
+  const bounce = Math.sin(time * 6 + monster.id) * (monster.defId === "slime" ? 0.08 : 0.03);
+  const lift = monster.defId === "bat" ? 8 + Math.sin(time * 8 + monster.id) * 4 : 0;
+  const lunge = monster.lungeTimer > 0 ? 1.15 : 1;
 
   ctx.save();
-  ctx.translate(x, y);
+  ctx.translate(x, y - lift);
   ctx.scale((1 + bounce) * lunge, (1 - bounce) * lunge);
 
-  ctx.fillStyle = def.color;
-  if (monster.defId === "golem") {
-    roundRect(ctx, -radius, -radius, radius * 2, radius * 2, 8);
-    ctx.fill();
-    ctx.fillStyle = "#00000022";
-    ctx.fillRect(-radius, radius * 0.2, radius * 2, radius * 0.25);
-  } else {
+  // กำลังไล่ผู้เล่น = วงแดงรอบตัว
+  if (monster.mode === "chase") {
+    ctx.strokeStyle = "#ff3b3b99";
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, 0, radius, radius * (monster.defId === "slime" ? 0.85 : 1), 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(0, 0, radius * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
-  if (monster.defId === "wolf") {
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.8, -radius * 0.4); ctx.lineTo(-radius * 0.5, -radius * 1.3); ctx.lineTo(-radius * 0.1, -radius * 0.7);
-    ctx.moveTo(radius * 0.8, -radius * 0.4); ctx.lineTo(radius * 0.5, -radius * 1.3); ctx.lineTo(radius * 0.1, -radius * 0.7);
-    ctx.fill();
-  }
+  // อีโมจิสีใช้ความโปร่งใสของ fillStyle ด้วย → ต้องตั้งสีทึบก่อน (ไม่งั้นจางตามเงา)
+  ctx.fillStyle = "#000000";
+  ctx.font = `${Math.round(radius * 2)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(def.icon, 0, radius * 0.1);
 
-  // ตา: โกรธ = สีแดง
-  ctx.fillStyle = monster.mode === "chase" ? "#ff3b3b" : "#2d1b4e";
-  ctx.beginPath();
-  ctx.arc(-radius * 0.35, -radius * 0.15, radius * 0.13, 0, Math.PI * 2);
-  ctx.arc(radius * 0.35, -radius * 0.15, radius * 0.13, 0, Math.PI * 2);
-  ctx.fill();
+  if (def.boss) {
+    ctx.font = `${Math.round(radius * 0.9)}px sans-serif`;
+    ctx.fillText("👑", 0, -radius * 1.05);
+  }
 
   if (monster.hitFlash > 0) {
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 0.5;
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(0, 0, radius * 1.05, 0, Math.PI * 2);
@@ -224,10 +286,10 @@ function drawMonster(ctx, monster, time) {
   }
   ctx.restore();
 
-  // ชื่อ + หลอดเลือด แสดงเมื่อโดนตีหรือกำลังไล่
-  if (monster.hp < def.maxHp || monster.mode === "chase") {
+  // ชื่อ + หลอดเลือด แสดงเมื่อโดนตี / กำลังไล่ / เป็นบอส
+  if (def.boss || monster.hp < def.maxHp || monster.mode === "chase") {
     const barWidth = Math.max(36, radius * 2);
-    const top = y - radius - 14;
+    const top = y - lift - radius * (def.boss ? 1.6 : 1) - 14;
     ctx.fillStyle = "#2d1b4ecc";
     ctx.fillRect(x - barWidth / 2, top, barWidth, 6);
     ctx.fillStyle = "#ff5c6c";
@@ -345,6 +407,7 @@ function drawDrop(ctx, drop) {
   ctx.beginPath();
   ctx.arc(drop.x, y, 13, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = "#000000"; // สีทึบ ไม่งั้นไอคอนจางตามวงสีด้านหลัง
   ctx.font = "16px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
