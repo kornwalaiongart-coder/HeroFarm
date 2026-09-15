@@ -9,7 +9,7 @@
 import { state, CONFIG } from "./state.js";
 import { loadGame, saveGame, saveIfDirty, markDirty } from "./save.js";
 import { MAPS } from "../data/maps.js";
-import { ITEMS } from "../data/items.js";
+import { ITEMS } from "./systems/itemDatabase.js";
 import { MONSTERS } from "../data/monsters.js";
 import { createWorld, updateWorld } from "./game/world.js";
 import { createRenderer } from "./game/render.js";
@@ -117,7 +117,7 @@ function handleEvents(events) {
       case "pickup":
         markDirty();
         // ของหายากแจ้งเตือนเด่นๆ วัตถุดิบธรรมดาดูแค่ตัวหนังสือลอยพอ
-        if (event.kind === "item" && ITEMS[event.itemId].type === "equipment") {
+        if (event.kind === "item" && ITEMS[event.itemId].isEquippable) {
           showToast("🎉 ได้รับ " + ITEMS[event.itemId].icon + " " + ITEMS[event.itemId].name);
         }
         break;

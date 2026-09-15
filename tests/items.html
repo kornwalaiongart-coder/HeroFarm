@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hero Farm — Item Database</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; background: #1c1333; color: #fff8ea; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .status { font-weight: 700; }
+    .status.ok { color: #6fcf97; }
+    .status.error { color: #ff5c6c; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .chip { background: #2d1b4e; border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+    .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; }
+    .filters label { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+    select, input { font: inherit; padding: 4px 6px; border-radius: 6px; border: 0; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 900px; background: #251844; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #3a2a60; text-align: left; vertical-align: top; }
+    th { background: #2d1b4e; position: sticky; top: 0; }
+    .icon { font-size: 24px; text-align: center; }
+    .id { font-family: monospace; color: #a7e9ff; }
+    small, .desc { color: #cbbfe0; }
+    .flag-no { color: #ff8a80; }
+    pre { white-space: pre-wrap; background: #3a1020; color: #ffb3b3; padding: 10px; border-radius: 8px; }
+  </style>
+  <script>
+    // เก็บ error ทุกอย่างที่เกิดในหน้านี้ (รวม error ตอนโหลดข้อมูลไอเทม) ไว้แสดงบนจอ
+    window.__errors = [];
+    window.addEventListener("error", (event) => window.__errors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.__errors.push(String(event.reason)));
+    const originalConsoleError = console.error;
+    console.error = (...args) => {
+      window.__errors.push(args.map(String).join(" "));
+      originalConsoleError(...args);
+    };
+  </script>
+</head>
+<body>
+  <!--
+    หน้าดีบัก ITEM DATABASE — เปิดผ่าน Live Server: /tests/items.html
+    อ่านข้อมูลอย่างเดียว ไม่แตะเซฟของเกม
+  -->
+  <h1>🎒 Item Database</h1>
+  <p class="status" id="status">กำลังโหลด…</p>
+  <div class="chips" id="type-summary"></div>
+  <div class="chips" id="rarity-summary"></div>
+
+  <div class="filters">
+    <label>ประเภท (getItemsByType)
+      <select id="filter-type"><option value="">ทั้งหมด</option></select>
+    </label>
+    <label>ความหายาก (getItemsByRarity)
+      <select id="filter-rarity"><option value="">ทั้งหมด</option></select>
+    </label>
+    <label>ค้นหา ID (getItemById)
+      <input id="filter-id" placeholder="เช่น iron_sword" autocomplete="off" />
+    </label>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th></th><th>ID</th><th>ชื่อ / คำอธิบาย</th><th>ประเภท</th><th>ความหายาก</th>
+          <th>ค่าพลัง / ผล</th><th>ราคา</th><th>Lv</th><th>ซ้อนได้</th><th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <pre id="errors" hidden></pre>
+
+  <script type="module">
+    import {
+      ITEM_TYPES, RARITIES, getAllItems, getItemById, getItemsByType, getItemsByRarity, getRarity, getItemType
+    } from "../js/systems/itemDatabase.js";
+
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (text) => String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+    const STAT_LABELS = {
+      attack: "⚔️ ATK", defense: "🛡️ DEF", hp: "❤️ HP",
+      critical: "💥 คริ", attackSpeed: "⚡ ความเร็วตี", criticalResistance: "🧱 ต้านคริ"
+    };
+    const PERCENT_STATS = new Set(["critical", "attackSpeed", "criticalResistance"]);
+    const formatStat = (key, value) => PERCENT_STATS.has(key) ? `+${Math.round(value * 100)}%` : value;
+
+    function detailText(item) {
+      if (item.stats) {
+        const stats = Object.entries(item.stats).filter(([, v]) => v !== 0)
+          .map(([k, v]) => `${STAT_LABELS[k]} ${formatStat(k, v)}`);
+        const perPlus = Object.entries(item.statsPerPlus).filter(([, v]) => v !== 0)
+          .map(([k, v]) => `${STAT_LABELS[k]} +${formatStat(k, v)}`);
+        return stats.join("<br>") + (perPlus.length ? `<br><small>ตีบวก +1: ${perPlus.join(", ")}</small>` : "");
+      }
+      if (item.effects.length) {
+        return item.effects.map((e) => e.type === "buff"
+          ? `บัฟ ${e.stat} +${e.amount} (${e.duration} วิ)`
+          : `${e.type.toUpperCase()} +${e.amount}`).join("<br>");
+      }
+      if (item.material) return `ระดับ ${item.material.tier}<br><small>${item.material.craftingTags.join(", ")}</small>`;
+      if (item.collectible) return `${item.collectible.kind}<br><small>${item.collectible.collectionId}</small>`;
+      return "-";
+    }
+
+    function renderRows(items) {
+      $("rows").innerHTML = items.map((item) => {
+        const rarity = getRarity(item.rarity);
+        const flag = (ok, label) => `<span class="${ok ? "" : "flag-no"}">${ok ? "✔" : "✘"} ${label}</span>`;
+        return `
+          <tr>
+            <td class="icon">${item.icon}</td>
+            <td class="id">${escapeHtml(item.id)}</td>
+            <td><b>${escapeHtml(item.name)}</b><br><span class="desc">${escapeHtml(item.description)}</span></td>
+            <td>${getItemType(item.type).icon} ${getItemType(item.type).name}<br><small>${item.type}</small></td>
+            <td style="color:${rarity.color}"><b>${rarity.name}</b><br><small>${item.rarity}</small></td>
+            <td>${detailText(item)}</td>
+            <td>ขาย ${item.sellPrice} 🪙<br><small>${item.buyPrice > 0 ? "ซื้อ " + item.buyPrice + " 🪙" : "ร้านไม่ขาย"}</small></td>
+            <td>${item.levelRequirement}</td>
+            <td>${item.maxStack}</td>
+            <td>${flag(item.isSellable, "ขายได้")}<br>${flag(item.isTradable, "เทรดได้")}<br>${flag(item.isEquippable, "สวมได้")}</td>
+          </tr>`;
+      }).join("") || '<tr><td colspan="10">ไม่พบไอเทม</td></tr>';
+    }
+
+    // กรองด้วยฟังก์ชันของ Database จริง
+    function applyFilters() {
+      const type = $("filter-type").value;
+      const rarity = $("filter-rarity").value;
+      const query = $("filter-id").value.trim();
+
+      let items = type ? getItemsByType(type) : getAllItems();
+      if (rarity) {
+        const ids = new Set(getItemsByRarity(rarity).map((item) => item.id));
+        items = items.filter((item) => ids.has(item.id));
+      }
+      if (query) {
+        const exact = getItemById(query);   // หา ID เก่าที่เปลี่ยนชื่อแล้วเจอด้วย เช่น wood_sword
+        items = exact ? items.filter((item) => item.id === exact.id) : items.filter((item) => item.id.includes(query));
+      }
+      renderRows(items);
+    }
+
+    // ตัวเลือกในช่องกรอง + สรุปจำนวน
+    for (const type of Object.values(ITEM_TYPES)) {
+      $("filter-type").insertAdjacentHTML("beforeend", `<option value="${type.id}">${type.icon} ${type.name} (${type.id})</option>`);
+      $("type-summary").insertAdjacentHTML("beforeend", `<span class="chip">${type.icon} ${type.name} ${getItemsByType(type.id).length}</span>`);
+    }
+    for (const rarity of Object.values(RARITIES)) {
+      $("filter-rarity").insertAdjacentHTML("beforeend", `<option value="${rarity.id}">${rarity.name} (${rarity.id})</option>`);
+      $("rarity-summary").insertAdjacentHTML("beforeend", `<span class="chip" style="color:${rarity.color}">${rarity.name} ${getItemsByRarity(rarity.id).length}</span>`);
+    }
+    for (const id of ["filter-type", "filter-rarity"]) $(id).addEventListener("change", applyFilters);
+    $("filter-id").addEventListener("input", applyFilters);
+
+    applyFilters();
+    $("status").textContent = `✅ โหลด Item Database สำเร็จ ${getAllItems().length} ไอเทม`;
+    $("status").className = "status ok";
+    document.title = "ITEMS OK";
+    window.__itemsReady = true;
+  </script>
+
+  <script>
+    // ถ้าข้อมูลไอเทมผิด โมดูลด้านบนจะหยุดทำงาน → แสดง error ให้เห็นบนจอ
+    window.addEventListener("load", () => {
+      setTimeout(() => {
+        if (window.__errors.length === 0 && window.__itemsReady) return;
+        const status = document.getElementById("status");
+        if (!window.__itemsReady) {
+          status.textContent = "❌ โหลด Item Database ไม่สำเร็จ — ดูรายละเอียดด้านล่าง หรือกด F12 เปิด Console";
+          status.className = "status error";
+          document.title = "ITEMS ERROR";
+        }
+        const box = document.getElementById("errors");
+        box.textContent = window.__errors.join("\n\n") || "ไม่พบข้อความ error (ลองเปิด Console ดู)";
+        box.hidden = false;
+      }, 0);
+    });
+  </script>
+</body>
+</html>

@@ -6,7 +6,7 @@
 // มีรูป sprite จริงเมื่อไหร่ แก้แค่ฟังก์ชัน drawPlayer / drawMonster
 // =====================================================
 
-import { ITEMS, RARITY } from "../../data/items.js";
+import { ITEMS, RARITIES } from "../systems/itemDatabase.js";
 import { MAPS } from "../../data/maps.js";
 import { WORLD_RULES } from "./world.js";
 
@@ -403,7 +403,7 @@ function drawDrop(ctx, drop) {
   }
 
   const item = ITEMS[drop.itemId];
-  ctx.fillStyle = RARITY[item.rarity].color + "66";
+  ctx.fillStyle = RARITIES[item.rarity].color + "66";
   ctx.beginPath();
   ctx.arc(drop.x, y, 13, 0, Math.PI * 2);
   ctx.fill();

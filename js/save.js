@@ -7,7 +7,7 @@
 // =====================================================
 
 import { state, replaceState, createNewState, CONFIG } from "./state.js";
-import { ITEMS, EQUIPMENT_SLOTS } from "../data/items.js";
+import { ITEMS, EQUIPMENT_SLOTS, resolveItemId } from "./systems/itemDatabase.js";
 import { MAPS } from "../data/maps.js";
 import { MAX_PLUS } from "./systems/upgrade.js";
 
@@ -84,21 +84,26 @@ function sanitize(save) {
   player.level = Math.max(1, Math.floor(player.level));
 
   const materials = {};
-  for (const [itemId, qty] of Object.entries(save.inventory?.materials ?? {})) {
+  for (const [savedId, qty] of Object.entries(save.inventory?.materials ?? {})) {
+    // ID เก่าที่เปลี่ยนชื่อแล้ว (เช่น slime_jelly → slime_gel) แปลงเป็น ID ปัจจุบัน
+    const itemId = resolveItemId(savedId);
     const count = Math.floor(toNumber(qty, 0));
-    if (ITEMS[itemId]?.type === "material" && count > 0) materials[itemId] = count;
+    if (itemId && !ITEMS[itemId].isEquippable && count > 0) {
+      materials[itemId] = (materials[itemId] ?? 0) + count;
+    }
   }
 
   const seenUids = new Set();
   const equipment = [];
   for (const item of Array.isArray(save.inventory?.equipment) ? save.inventory.equipment : []) {
-    if (!item || ITEMS[item.itemId]?.type !== "equipment") continue;
+    const itemId = resolveItemId(item?.itemId);
+    if (!itemId || !ITEMS[itemId].isEquippable) continue;
     if (!Number.isInteger(item.uid) || seenUids.has(item.uid)) continue;
 
     seenUids.add(item.uid);
     equipment.push({
       uid: item.uid,
-      itemId: item.itemId,
+      itemId,
       plus: Math.min(MAX_PLUS, Math.floor(toNumber(item.plus, 0)))
     });
   }

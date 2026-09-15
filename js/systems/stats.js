@@ -7,7 +7,7 @@
 // =====================================================
 
 import { state } from "../state.js";
-import { ITEMS } from "../../data/items.js";
+import { ITEMS } from "./itemDatabase.js";
 import { findEquipment } from "./inventory.js";
 
 // ---------- ค่าพลังพื้นฐานของผู้เล่น (ปรับสมดุลได้ที่นี่) ----------
@@ -28,12 +28,14 @@ export const PLAYER_BASE = {
 };
 
 // ---------- ค่าพลังที่อุปกรณ์ชิ้นหนึ่งให้ ----------
+// อ่านจาก Item Database: stats + statsPerPlus × ระดับตีบวก
+// (critical / attackSpeed / criticalResistance ยังไม่ใช้ในการต่อสู้ตอนนี้)
 export function getEquipmentStats(item) {
   const def = ITEMS[item.itemId];
   return {
-    atk: (def.atk ?? 0) + (def.atkPerPlus ?? 0) * item.plus,
-    def: (def.def ?? 0) + (def.defPerPlus ?? 0) * item.plus,
-    hp: (def.hp ?? 0) + (def.hpPerPlus ?? 0) * item.plus
+    atk: def.stats.attack + def.statsPerPlus.attack * item.plus,
+    def: def.stats.defense + def.statsPerPlus.defense * item.plus,
+    hp: def.stats.hp + def.statsPerPlus.hp * item.plus
   };
 }
 

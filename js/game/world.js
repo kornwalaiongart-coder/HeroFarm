@@ -11,7 +11,7 @@
 
 import { MAPS } from "../../data/maps.js";
 import { MONSTERS } from "../../data/monsters.js";
-import { ITEMS } from "../../data/items.js";
+import { ITEMS } from "../systems/itemDatabase.js";
 import { createRng, randomRange } from "../systems/rng.js";
 import { getPlayerStats, calcDamage } from "../systems/stats.js";
 import { rollLoot } from "../systems/loot.js";

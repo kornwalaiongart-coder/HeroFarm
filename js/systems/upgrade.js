@@ -7,7 +7,7 @@
 // =====================================================
 
 import { state, addGold } from "../state.js";
-import { ITEMS } from "../../data/items.js";
+import { ITEMS } from "./itemDatabase.js";
 import { findEquipment, countMaterial, removeMaterial } from "./inventory.js";
 
 export const MAX_PLUS = 10;
@@ -15,7 +15,7 @@ export const MAX_PLUS = 10;
 // index = ระดับปัจจุบัน → โอกาสตีสำเร็จไประดับถัดไป
 const SUCCESS_RATE = [1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2];
 
-const RARITY_COST_MULTIPLIER = { common: 1, rare: 2, epic: 3 };
+const RARITY_COST_MULTIPLIER = { common: 1, uncommon: 1.5, rare: 2, epic: 3, legendary: 4, mythic: 5 };
 
 export function getUpgradeCost(item) {
   const plus = item.plus;

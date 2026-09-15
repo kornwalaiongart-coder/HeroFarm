@@ -3,13 +3,13 @@
 // กระเป๋าและอุปกรณ์ที่สวมใส่
 //
 // โครงสร้างใน state:
-//   inventory.materials = { itemId: จำนวน }
-//   inventory.equipment = [ { uid, itemId, plus } ]   ← แต่ละชิ้นแยกกัน
+//   inventory.materials = { itemId: จำนวน }            ← ไอเทมที่ซ้อนได้ (วัตถุดิบ ยา ของสะสม ฯลฯ)
+//   inventory.equipment = [ { uid, itemId, plus } ]   ← อุปกรณ์ แต่ละชิ้นแยกกัน
 //   equipped            = { weapon: uid | null, armor: uid | null }
 // =====================================================
 
 import { state, addGold } from "../state.js";
-import { ITEMS } from "../../data/items.js";
+import { ITEMS } from "./itemDatabase.js";
 
 // ---------- วัตถุดิบ ----------
 export function countMaterial(itemId) {
@@ -60,7 +60,7 @@ export function unequip(slot) {
 
 // ---------- ได้ของจากมอนเตอร์ ----------
 export function addLoot(itemId, qty = 1) {
-  if (ITEMS[itemId].type === "equipment") {
+  if (ITEMS[itemId].isEquippable) {
     for (let i = 0; i < qty; i++) addEquipment(itemId);
   } else {
     addMaterial(itemId, qty);

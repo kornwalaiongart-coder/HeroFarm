@@ -8,7 +8,7 @@
 // =====================================================
 
 import { state } from "../state.js";
-import { ITEMS, RARITY, EQUIPMENT_SLOTS } from "../../data/items.js";
+import { ITEMS, RARITIES, EQUIPMENT_SLOTS } from "../systems/itemDatabase.js";
 import {
   countMaterial, findEquipment, isEquipped, equip, unequip,
   sellMaterial, sellEquipment, getEquipmentSellPrice
@@ -165,7 +165,7 @@ export function renderPanel() {
 function itemName(item) {
   const def = ITEMS[item.itemId];
   const plus = item.plus > 0 ? ` +${item.plus}` : "";
-  return `<span style="color:${RARITY[def.rarity].color}">${def.name}${plus}</span>`;
+  return `<span style="color:${RARITIES[def.rarity].color}">${def.name}${plus}</span>`;
 }
 
 function statText(item) {
@@ -209,7 +209,7 @@ function renderInventory() {
       <div class="item-row">
         <span class="item-icon">${def.icon}</span>
         <div class="item-info">
-          <p class="item-name"><span style="color:${RARITY[def.rarity].color}">${def.name}</span> ×${qty}</p>
+          <p class="item-name"><span style="color:${RARITIES[def.rarity].color}">${def.name}</span> ×${qty}</p>
           <p class="item-meta">ขายชิ้นละ ${def.sellPrice} 🪙</p>
         </div>
         <div class="item-actions">

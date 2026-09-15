@@ -4,7 +4,7 @@
 // =====================================================
 
 import { state } from "../state.js";
-import { STARTER_EQUIPMENT } from "../../data/items.js";
+import { STARTER_EQUIPMENT } from "./itemDatabase.js";
 import { addEquipment, equip } from "./inventory.js";
 
 export const GENDERS = {

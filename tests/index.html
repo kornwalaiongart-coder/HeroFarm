@@ -29,7 +29,10 @@
     import { createWorld, updateWorld, isInSafeZone, WORLD_RULES } from "../js/game/world.js";
     import { MONSTERS } from "../data/monsters.js";
     import { MAPS, START_MAP_ID } from "../data/maps.js";
-    import { ITEMS } from "../data/items.js";
+    import {
+      ITEMS, RARITIES, ITEM_TYPES, getItemById, getItemsByType, getItemsByRarity,
+      resolveItemId, isStackable, getCollectionProgress, validateItemDefinitions
+    } from "../js/systems/itemDatabase.js";
 
     const lines = [];
     const log = (status, text) => lines.push(`${status} ${text}`);
@@ -123,6 +126,87 @@
       assert(all.items.length === MONSTERS.slime.drops.length && all.gold === 3, "all drops");
       const none = rollLoot(MONSTERS.slime, () => 0.999);
       assert(none.items.length === 0 && none.gold === 6, "no drops");
+    });
+
+    // =====================================================
+    // ITEM DATABASE
+    // =====================================================
+    await test("Item DB: ไอเทมตัวอย่างครบ และทุกชิ้นมีฟิลด์พื้นฐาน", () => {
+      const examples = [
+        "wooden_sword", "iron_sword", "flame_sword", "leather_armor", "iron_armor", "knight_armor",
+        "small_hp_potion", "large_hp_potion", "exp_potion",
+        "slime_gel", "wolf_fang", "iron_ore", "magic_crystal", "slime_badge", "ancient_coin"
+      ];
+      for (const id of examples) assert(getItemById(id), "ไม่มี " + id);
+
+      const fields = ["id", "name", "type", "rarity", "icon", "description", "maxStack", "sellPrice",
+        "buyPrice", "levelRequirement", "isSellable", "isTradable", "isEquippable"];
+      for (const item of Object.values(ITEMS)) {
+        for (const field of fields) assert(item[field] !== undefined, `${item.id} ไม่มี ${field}`);
+        assert(ITEM_TYPES[item.type] && RARITIES[item.rarity], item.id + " type/rarity");
+        assert(Object.isFrozen(item), item.id + " ต้องแก้ค่าไม่ได้");
+      }
+    });
+
+    await test("Item DB: ค้นหาด้วย id / type / rarity", () => {
+      assert(getItemById("iron_sword").name === "ดาบเหล็ก", "by id");
+      assert(getItemById("nope") === null && getItemById("constructor") === null && getItemById(undefined) === null, "unknown id");
+
+      const weapons = getItemsByType("weapon");
+      assert(weapons.length >= 3 && weapons.every((item) => item.type === "weapon" && item.isEquippable && item.slot === "weapon"), "weapons");
+      assert(getItemsByType("material").every((item) => !item.isEquippable && item.material), "materials");
+      assert(getItemsByRarity("epic").some((item) => item.id === "flame_sword"), "epic");
+      assert(getItemsByType("quest").length === 0 && getItemsByRarity("mythic").length === 0, "empty lists");
+
+      const flame = getItemById("flame_sword");
+      assert(flame.stats.attack === 22 && flame.stats.critical === 0.05 && flame.stats.hp === 0, "weapon stats + defaults");
+      assert(getItemById("small_hp_potion").effects[0].type === "hp" && getItemById("slime_gel").stats === null, "effects / stats null");
+      assert(getItemById("slime_badge").collectible.kind === "badge" && !getItemById("slime_badge").isSellable, "collectible");
+      assert(isStackable("slime_gel") && !isStackable("iron_sword"), "stackable");
+    });
+
+    await test("Item DB: ID เก่าที่เปลี่ยนชื่อยังหาเจอ และเซฟเก่าถูกแปลง", () => {
+      assert(resolveItemId("wood_sword") === "wooden_sword" && getItemById("slime_jelly").id === "slime_gel", "legacy lookup");
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 3,
+        profile: { name: "Old", gender: "male" },
+        player: { level: 2, exp: 0, gold: 10, gem: 0 },
+        inventory: { materials: { slime_jelly: 4, slime_gel: 1 }, equipment: [{ uid: 5, itemId: "wood_sword", plus: 2 }] },
+        equipped: { weapon: 5, armor: null },
+        nextUid: 6
+      }));
+      assert(loadGame(), "load");
+      assert(state.inventory.materials.slime_gel === 5 && !("slime_jelly" in state.inventory.materials), JSON.stringify(state.inventory.materials));
+      assert(state.inventory.equipment[0].itemId === "wooden_sword" && state.equipped.weapon === 5, JSON.stringify(state.inventory.equipment));
+      assert(getPlayerStats().atk === 18, "atk " + getPlayerStats().atk);
+    });
+
+    await test("Item DB: ตรวจจับข้อมูลผิด", () => {
+      const good = { id: "test_item", name: "ทดสอบ", type: "material", rarity: "common" };
+      assert(validateItemDefinitions([good], {}).length === 0, "good item");
+
+      const badCases = [
+        [{ ...good, id: "ดาบ" }, "id"],
+        [{ ...good, rarity: "ตำนาน" }, "rarity"],
+        [{ ...good, type: "food" }, "type"],
+        [{ ...good, type: "weapon", stats: { atk: 5 } }, "stats.atk"],
+        [{ ...good, type: "consumable" }, "effects"],
+        [{ ...good, sellPrice: -1 }, "sellPrice"]
+      ];
+      for (const [def, keyword] of badCases) {
+        const errors = validateItemDefinitions([def], {});
+        assert(errors.some((error) => error.includes(keyword)), `ต้องจับ ${keyword} ได้: ${JSON.stringify(errors)}`);
+      }
+      assert(validateItemDefinitions([good, good], {}).some((error) => error.includes("ซ้ำ")), "duplicate id");
+      assert(validateItemDefinitions([good], { old_id: "missing" }).length === 1, "legacy target missing");
+    });
+
+    await test("Item DB: เตรียมสมุดสะสม (ค้นพบ / ทั้งหมด ต่อประเภท)", () => {
+      const progress = getCollectionProgress(["slime_jelly", "slime_gel", "wolf_fang", "iron_sword", "nope"]);
+      const byType = Object.fromEntries(progress.map((row) => [row.type, row]));
+      assert(progress.length === Object.keys(ITEM_TYPES).length, "ทุกประเภท");
+      assert(byType.material.found === 2 && byType.material.total === getItemsByType("material").length, JSON.stringify(byType.material));
+      assert(byType.weapon.found === 1 && byType.collectible.found === 0, "weapon / collectible");
     });
 
     // =====================================================

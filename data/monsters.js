@@ -25,9 +25,9 @@ export const MONSTERS = {
     gold: [3, 6],
     respawnTime: 6,
     drops: [
-      { itemId: "slime_jelly", chance: 0.6, qty: [1, 2] },
+      { itemId: "slime_gel", chance: 0.6, qty: [1, 2] },
       { itemId: "enhance_stone", chance: 0.08 },
-      { itemId: "wood_sword", chance: 0.03 },
+      { itemId: "wooden_sword", chance: 0.03 },
       { itemId: "cloth_armor", chance: 0.03 }
     ]
   },
