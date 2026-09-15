@@ -1,31 +1,43 @@
 // =====================================================
 // js/save.js
 // หน้าที่: เก็บ state ลงเครื่องผู้เล่น (localStorage)
-// เพื่อให้รีเฟรชหน้าเว็บแล้วข้อมูลไม่หาย
-//
-// localStorage เก็บได้แค่ "ข้อความ" เท่านั้น
-// เราจึงต้องแปลง object → ข้อความ ด้วย JSON.stringify ตอนเซฟ
-// และแปลงกลับด้วย JSON.parse ตอนโหลด
 //
 // ขั้นตอนโหลด:  อ่าน → แปลงเวอร์ชัน (migrate) → ตรวจ/ซ่อมค่า (sanitize)
+// ขั้นตอนเซฟ:   ระบบต่างๆ เรียก markDirty() → main.js เซฟรวบทีเดียวตามรอบ
 // =====================================================
 
 import { state, replaceState, createNewState, CONFIG } from "./state.js";
-import { getCharacterDef } from "./systems/characters.js";
+import { ITEMS, EQUIPMENT_SLOTS } from "../data/items.js";
+import { MAX_PLUS } from "./systems/upgrade.js";
 
 const SAVE_KEY = "herofarm_save";
 // สำเนาเซฟดิบก่อนแปลงเวอร์ชัน หรือก่อนทิ้งเซฟที่อ่านไม่ได้
-// ถ้าแปลงผิดพลาด ยังกู้ข้อมูลผู้เล่นกลับมาได้
 const BACKUP_KEY = "herofarm_save_backup";
 
 // ---------- ตารางแปลงเซฟเก่า ----------
 // key = เวอร์ชันต้นทาง ฟังก์ชันรับเซฟเวอร์ชันนั้น คืนเซฟเวอร์ชันถัดไป
-// เปลี่ยนโครงสร้างเซฟเมื่อไหร่: เพิ่ม CONFIG.SAVE_VERSION แล้วเพิ่มขั้นตอนที่นี่
 const MIGRATIONS = {
   // v1 → v2: เลิกเก็บชื่อ/รูป/ค่าพลังในเซฟ เหลือแค่ id, level, exp
   1: (save) => ({
     ...save,
     characters: save.characters.map(({ id, level, exp }) => ({ id, level, exp }))
+  }),
+
+  // v2 → v3: เปลี่ยนจากเกมการ์ด เป็นเกมเดินตีมอนเตอร์
+  // เก็บเลเวล/ทอง/เพชรของผู้เล่นไว้ ตัดการ์ดตัวละครและพลังงานออก
+  // profile = null → ผู้เล่นเดิมจะได้สร้างตัวละครใหม่
+  2: (save) => ({
+    profile: null,
+    player: {
+      level: save.player.level,
+      exp: save.player.exp,
+      gold: save.player.gold,
+      gem: save.player.gem
+    },
+    inventory: { materials: {}, equipment: [] },
+    equipped: { weapon: null, armor: null },
+    nextUid: 1,
+    lastSavedAt: save.lastSavedAt
   })
 };
 
@@ -45,43 +57,95 @@ function migrate(save) {
 }
 
 // ---------- ตรวจและซ่อมค่าในเซฟ ----------
-// กันหน้าจอพังเพราะเจอ undefined / NaN / ตัวละครที่ถูกลบออกจากเกมไปแล้ว
+// กันเกมพังเพราะ undefined / NaN / ไอเทมที่ถูกลบออกจากเกมไปแล้ว
 function toNumber(value, fallback, min = 0) {
   return Number.isFinite(value) ? Math.max(min, value) : fallback;
+}
+
+function sanitizeProfile(profile) {
+  if (!profile || typeof profile.name !== "string" || !profile.name.trim()) return null;
+  if (profile.gender !== "male" && profile.gender !== "female") return null;
+
+  return {
+    name: profile.name.trim().slice(0, 12),
+    gender: profile.gender,
+    createdAt: toNumber(profile.createdAt, Date.now())
+  };
 }
 
 function sanitize(save) {
   const fresh = createNewState();
 
-  const player = { ...fresh.player, ...save.player };
+  const player = {};
   for (const key of Object.keys(fresh.player)) {
-    player[key] = toNumber(player[key], fresh.player[key]);
+    player[key] = toNumber(save.player?.[key], fresh.player[key]);
   }
   player.level = Math.max(1, Math.floor(player.level));
-  player.energy = Math.min(player.energy, player.maxEnergy);
 
-  const characters = save.characters
-    .filter((owned) => owned && getCharacterDef(owned.id))
-    .map((owned) => ({
-      id: owned.id,
-      level: Math.floor(toNumber(owned.level, 1, 1)),
-      exp: toNumber(owned.exp, 0)
-    }));
+  const materials = {};
+  for (const [itemId, qty] of Object.entries(save.inventory?.materials ?? {})) {
+    const count = Math.floor(toNumber(qty, 0));
+    if (ITEMS[itemId]?.type === "material" && count > 0) materials[itemId] = count;
+  }
 
-  return { ...fresh, ...save, version: CONFIG.SAVE_VERSION, player, characters };
+  const seenUids = new Set();
+  const equipment = [];
+  for (const item of Array.isArray(save.inventory?.equipment) ? save.inventory.equipment : []) {
+    if (!item || ITEMS[item.itemId]?.type !== "equipment") continue;
+    if (!Number.isInteger(item.uid) || seenUids.has(item.uid)) continue;
+
+    seenUids.add(item.uid);
+    equipment.push({
+      uid: item.uid,
+      itemId: item.itemId,
+      plus: Math.min(MAX_PLUS, Math.floor(toNumber(item.plus, 0)))
+    });
+  }
+
+  // สวมได้เฉพาะของที่มีอยู่จริงและใส่ถูกช่อง
+  const equipped = {};
+  for (const slot of Object.keys(EQUIPMENT_SLOTS)) {
+    const uid = save.equipped?.[slot];
+    const item = equipment.find((other) => other.uid === uid);
+    equipped[slot] = item && ITEMS[item.itemId].slot === slot ? uid : null;
+  }
+
+  const maxUid = equipment.reduce((max, item) => Math.max(max, item.uid), 0);
+
+  return {
+    version: CONFIG.SAVE_VERSION,
+    profile: sanitizeProfile(save.profile),
+    player,
+    inventory: { materials, equipment },
+    equipped,
+    nextUid: Math.max(maxUid + 1, Math.floor(toNumber(save.nextUid, 1, 1))),
+    lastSavedAt: save.lastSavedAt ?? null
+  };
 }
 
 // ---------- บันทึก ----------
+let dirty = false;
+
+// เรียกทุกครั้งที่ state เปลี่ยน (ได้ของ, ตีบวก, เลเวลอัพ ฯลฯ)
+export function markDirty() {
+  dirty = true;
+}
+
 export function saveGame() {
   try {
     state.lastSavedAt = Date.now();
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    dirty = false;
     return true;
   } catch (error) {
     // เกิดได้ถ้าเบราว์เซอร์ปิด localStorage หรือพื้นที่เต็ม
     console.error("บันทึกไม่สำเร็จ:", error);
     return false;
   }
+}
+
+export function saveIfDirty() {
+  return dirty ? saveGame() : false;
 }
 
 function backupRawSave(raw) {
@@ -102,14 +166,16 @@ export function loadGame() {
     if (!raw) return false;
 
     const loaded = JSON.parse(raw);
-
-    if (!loaded || typeof loaded.player !== "object" || !Array.isArray(loaded.characters)) {
+    if (!loaded || typeof loaded.player !== "object") {
       throw new Error("โครงสร้างเซฟไม่ถูกต้อง");
     }
 
     const version = loaded.version ?? 1;
     if (version > CONFIG.SAVE_VERSION) {
       throw new Error("เซฟมาจากเกมเวอร์ชันที่ใหม่กว่า (v" + version + ")");
+    }
+    if (version < 3 && !Array.isArray(loaded.characters)) {
+      throw new Error("โครงสร้างเซฟเก่าไม่ถูกต้อง");
     }
     if (version < CONFIG.SAVE_VERSION) backupRawSave(raw);
 

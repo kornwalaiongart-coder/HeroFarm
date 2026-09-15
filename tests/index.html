@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hero Farm — Tests</title>
+  <style>
+    body { font: 14px/1.6 monospace; padding: 16px; background: #1c1333; color: #fff8ea; }
+    .PASS { color: #6fcf97; } .FAIL { color: #ff5c6c; } .INFO { color: #a7e9ff; }
+    iframe { width: 420px; height: 760px; border: 0; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <!--
+    หน้าทดสอบอัตโนมัติ — เปิดผ่าน Live Server: /tests/
+    ไม่ต้องติดตั้งอะไรเพิ่ม เซฟจริงของผู้เล่นถูกสำรองไว้ก่อนทดสอบและคืนให้หลังจบ
+  -->
+  <h1>Hero Farm tests</h1>
+  <pre id="out">RUNNING…</pre>
+
+  <script type="module">
+    import { state, replaceState, createNewState, addPlayerExp } from "../js/state.js";
+    import { loadGame } from "../js/save.js";
+    import { createCharacter, validateName } from "../js/systems/player.js";
+    import { getPlayerStats, calcDamage } from "../js/systems/stats.js";
+    import { addMaterial, addEquipment, equip, sellEquipment, countMaterial, isEquipped } from "../js/systems/inventory.js";
+    import { upgradeEquipment, getUpgradeCost, MAX_PLUS } from "../js/systems/upgrade.js";
+    import { rollLoot } from "../js/systems/loot.js";
+    import { createRng } from "../js/systems/rng.js";
+    import { createWorld, updateWorld, isInSafeZone } from "../js/game/world.js";
+    import { MONSTERS } from "../data/monsters.js";
+
+    const lines = [];
+    const log = (status, text) => lines.push(`${status} ${text}`);
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    function assert(condition, message) {
+      if (!condition) throw new Error(message);
+    }
+
+    async function test(name, fn) {
+      try {
+        await fn();
+        log("PASS", name);
+      } catch (error) {
+        log("FAIL", `${name} — ${error.message}`);
+      }
+    }
+
+    function freshCharacter(gender = "male") {
+      replaceState(createNewState());
+      createCharacter("Tester", gender);
+    }
+
+    // สำรองเซฟจริง (หน้านี้อยู่ origin เดียวกับเกม)
+    const SAVE_KEYS = ["herofarm_save", "herofarm_save_backup"];
+    const realSaves = Object.fromEntries(SAVE_KEYS.map((key) => [key, localStorage.getItem(key)]));
+
+    // =====================================================
+    // ระบบย่อย
+    // =====================================================
+    await test("ตัวละครใหม่ได้อุปกรณ์เริ่มต้นและสวมไว้", () => {
+      freshCharacter();
+      const stats = getPlayerStats();
+      assert(state.inventory.equipment.length === 2, "equipment " + state.inventory.equipment.length);
+      assert(stats.atk === 14 && stats.def === 4 && stats.maxHp === 110, JSON.stringify(stats));
+    });
+
+    await test("ตรวจชื่อตัวละคร", () => {
+      assert(validateName(" a ") !== null, "สั้นเกิน");
+      assert(validateName("ชื่อยาวมากเกินสิบสองตัว") !== null, "ยาวเกิน");
+      assert(validateName("ฮีโร่") === null, "ชื่อปกติ");
+    });
+
+    await test("เลเวลอัพแล้วค่าพลังเพิ่ม", () => {
+      freshCharacter();
+      assert(addPlayerExp(100) === 1, "ควรขึ้น 1 เลเวล");
+      assert(getPlayerStats().atk === 16, "atk " + getPlayerStats().atk);
+    });
+
+    await test("ดาเมจต่ำสุด 1 และคริคูณ", () => {
+      assert(calcDamage(1, 999, () => 0.5).amount === 1, "min 1");
+      const crit = calcDamage(100, 0, () => 0, 1, 1.5);
+      assert(crit.crit && crit.amount === 135, "crit " + crit.amount);
+    });
+
+    await test("ตีบวก: สำเร็จ / ไม่สำเร็จ / ของไม่พอ / สูงสุด", () => {
+      freshCharacter();
+      const sword = state.inventory.equipment[0];
+      addMaterial("enhance_stone", 50);
+      state.player.gold = 1_000_000;
+
+      const gold = state.player.gold;
+      let result = upgradeEquipment(sword.uid, () => 0);
+      assert(result.success && sword.plus === 1 && state.player.gold === gold - 40, "+1");
+      assert(getPlayerStats().atk === 15, "atk +1");
+
+      sword.plus = 2;
+      result = upgradeEquipment(sword.uid, () => 0.99);
+      assert(result.ok && !result.success && sword.plus === 2, "fail keeps plus");
+
+      state.inventory.materials = {};
+      assert(upgradeEquipment(sword.uid).reason === "stones", "stones");
+
+      sword.plus = MAX_PLUS;
+      assert(upgradeEquipment(sword.uid).reason === "maxed", "maxed");
+      assert(getUpgradeCost({ itemId: "golem_hammer", plus: 0 }).gold === 120, "rarity cost");
+    });
+
+    await test("ขายของ: ของที่สวมอยู่ขายไม่ได้", () => {
+      freshCharacter();
+      const equipped = state.inventory.equipment[0];
+      assert(sellEquipment(equipped.uid) === 0 && isEquipped(equipped.uid), "equipped");
+
+      const spare = addEquipment("iron_sword", 2);
+      assert(sellEquipment(spare.uid) === 80, "sell price with plus");
+      assert(!state.inventory.equipment.includes(spare), "removed");
+    });
+
+    await test("สุ่มของดรอป", () => {
+      const all = rollLoot(MONSTERS.slime, () => 0);
+      assert(all.items.length === MONSTERS.slime.drops.length && all.gold === 3, "all drops");
+      const none = rollLoot(MONSTERS.slime, () => 0.999);
+      assert(none.items.length === 0 && none.gold === 6, "no drops");
+    });
+
+    // =====================================================
+    // แปลงเซฟเก่า
+    // =====================================================
+    await test("แปลงเซฟ v2 (เกมการ์ด) → v3", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 2,
+        player: { level: 4, exp: 20, gold: 777, gem: 9, energy: 10, maxEnergy: 75, energyUpdatedAt: 1 },
+        characters: [{ id: "knight_moon", level: 6, exp: 0 }],
+        lastSavedAt: 1
+      }));
+      assert(loadGame(), "load");
+      assert(state.version === 3 && state.profile === null, "version/profile");
+      assert(state.player.level === 4 && state.player.gold === 777 && !("energy" in state.player), JSON.stringify(state.player));
+      assert(!("characters" in state), "characters removed");
+      assert(JSON.parse(localStorage.getItem("herofarm_save_backup")).version === 2, "backup");
+    });
+
+    await test("แปลงเซฟ v1 → v3 ต่อกันได้", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 1,
+        player: { level: 2, exp: 5, gold: 50, gem: 1 },
+        characters: [{ id: "knight_moon", name: "x", level: 5, exp: 0, maxHp: 1, atk: 1 }]
+      }));
+      assert(loadGame() && state.version === 3 && state.player.gold === 50, "v1");
+    });
+
+    await test("เซฟ v3 ที่เสียบางส่วนถูกซ่อม", () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 3,
+        profile: { name: "  Hero  ", gender: "female" },
+        player: { level: "oops", exp: 1, gold: -5, gem: 2 },
+        inventory: {
+          materials: { enhance_stone: 3, deleted_item: 9, slime_jelly: -2 },
+          equipment: [
+            { uid: 1, itemId: "iron_sword", plus: 99 },
+            { uid: 1, itemId: "wood_sword", plus: 0 },
+            { uid: 7, itemId: "deleted_sword", plus: 0 }
+          ]
+        },
+        equipped: { weapon: 1, armor: 1 },
+        nextUid: 2
+      }));
+      assert(loadGame(), "load");
+      assert(state.profile.name === "Hero", "trim name");
+      assert(state.player.level === 1 && state.player.gold === 0, JSON.stringify(state.player));
+      assert(JSON.stringify(state.inventory.materials) === '{"enhance_stone":3}', JSON.stringify(state.inventory.materials));
+      assert(state.inventory.equipment.length === 1 && state.inventory.equipment[0].plus === MAX_PLUS, "equipment");
+      assert(state.equipped.weapon === 1 && state.equipped.armor === null, JSON.stringify(state.equipped));
+    });
+
+    // =====================================================
+    // โลกในเกม (จำลองการเล่นโดยไม่ต้องวาดจอ)
+    // =====================================================
+    await test("แผนที่สุ่มสิ่งกีดขวางได้ตำแหน่งเดิมทุกครั้ง", () => {
+      freshCharacter();
+      const a = createWorld("meadow", createRng(1));
+      const b = createWorld("meadow", createRng(2));
+      assert(a.obstacles.length > 40 && JSON.stringify(a.obstacles) === JSON.stringify(b.obstacles), "obstacles");
+    });
+
+    // บอทง่ายๆ: เดินเข้าหามอนเตอร์ชนิดที่กำหนดแล้วตี
+    function runBot(world, monsterId, seconds) {
+      const stats = { kills: 0, pickups: 0, deaths: 0, maxSafeViolation: 0 };
+      const dt = 1 / 30;
+
+      for (let t = 0; t < seconds; t += dt) {
+        const player = world.player;
+        const targets = world.monsters.filter((m) => !m.dead && m.defId === monsterId);
+        const target = targets.sort((m1, m2) => Math.hypot(m1.x - player.x, m1.y - player.y) - Math.hypot(m2.x - player.x, m2.y - player.y))[0];
+
+        const input = { moveX: 0, moveY: 0, attack: false };
+        if (target) {
+          const dx = target.x - player.x;
+          const dy = target.y - player.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 40) {
+            input.moveX = dx / dist;
+            input.moveY = dy / dist;
+          }
+          input.attack = dist < 90;
+        }
+
+        for (const event of updateWorld(world, input, dt)) {
+          if (event.type === "kill") stats.kills++;
+          if (event.type === "pickup") stats.pickups++;
+          if (event.type === "playerDied") stats.deaths++;
+        }
+
+        for (const m of world.monsters) {
+          if (!m.dead && isInSafeZone(world, m.x, m.y)) stats.maxSafeViolation++;
+          if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) throw new Error("monster NaN");
+        }
+        if (!Number.isFinite(player.x)) throw new Error("player NaN");
+      }
+      return stats;
+    }
+
+    await test("จำลองเล่น 3 นาที: ตีสไลม์ได้ของและเลเวลขึ้น", () => {
+      freshCharacter();
+      const world = createWorld("meadow", createRng(7));
+      const gold = state.player.gold;
+      const result = runBot(world, "slime", 180);
+
+      log("INFO", `  สไลม์ 3 นาที: ฆ่า ${result.kills} ตัว, เก็บของ ${result.pickups} ครั้ง, ตาย ${result.deaths}, Lv.${state.player.level}, ทอง +${state.player.gold - gold}, ไอเทม ${JSON.stringify(state.inventory.materials)}`);
+      assert(result.kills >= 10, "kills " + result.kills);
+      assert(result.pickups >= result.kills, "pickups " + result.pickups);
+      assert(result.deaths === 0, "Lv.1 ไม่ควรตายให้สไลม์");
+      assert(state.player.level >= 2 && state.player.gold > gold, "progress");
+      assert(result.maxSafeViolation === 0, "monster entered safe zone");
+    });
+
+    await test("สมดุล: Lv.1 สู้โกเลมไม่ไหว / Lv.10 + ของดีสู้ได้", () => {
+      freshCharacter();
+      let world = createWorld("meadow", createRng(3));
+      const weak = runBot(world, "golem", 60);
+
+      freshCharacter();
+      state.player.level = 10;
+      equip(addEquipment("iron_sword", 5).uid);
+      equip(addEquipment("leather_armor", 5).uid);
+      world = createWorld("meadow", createRng(3));
+      const strong = runBot(world, "golem", 60);
+
+      log("INFO", `  โกเลม 1 นาที: Lv.1 ของเริ่มต้น ฆ่า ${weak.kills} ตาย ${weak.deaths} | Lv.10 ดาบ+5 เกราะ+5 ฆ่า ${strong.kills} ตาย ${strong.deaths}`);
+      assert(weak.deaths >= 1, "Lv.1 ควรแพ้โกเลม");
+      assert(strong.kills >= 2, "Lv.10 ควรชนะโกเลม");
+    });
+
+    // =====================================================
+    // เล่นจริงผ่านหน้าเกม (iframe)
+    // =====================================================
+    async function waitFor(check, timeout = 4000) {
+      const start = performance.now();
+      while (performance.now() - start < timeout) {
+        const value = check();
+        if (value) return value;
+        await sleep(50);
+      }
+      throw new Error("timeout waiting");
+    }
+
+    async function openGame(frame) {
+      frame.src = "../index.html?t=" + Math.random();
+      await new Promise((resolve) => (frame.onload = resolve));
+      return waitFor(() => frame.contentWindow.heroFarm && frame.contentDocument);
+    }
+
+    await test("หน้าเกม: เซฟเก่า → สร้างตัวละคร → เดิน → ตีบวก → เซฟคงอยู่", async () => {
+      localStorage.setItem("herofarm_save", JSON.stringify({
+        version: 2, player: { level: 3, exp: 0, gold: 5000, gem: 9 }, characters: []
+      }));
+
+      const frame = document.createElement("iframe");
+      document.body.append(frame);
+      let doc = await openGame(frame);
+      let game = frame.contentWindow.heroFarm;
+
+      assert(!doc.getElementById("create-screen").hidden, "ต้องเปิดหน้าสร้างตัวละคร");
+      doc.getElementById("create-name").value = "ก";
+      doc.getElementById("create-form").requestSubmit();
+      assert(doc.getElementById("create-error").textContent !== "", "ชื่อสั้นต้องขึ้น error");
+
+      doc.querySelector('[data-gender="female"]').click();
+      doc.getElementById("create-name").value = "มินนี่";
+      doc.getElementById("create-form").requestSubmit();
+      await waitFor(() => game.world);
+      assert(doc.getElementById("create-screen").hidden, "หน้าสร้างต้องปิด");
+      assert(game.state.profile.gender === "female" && game.state.player.level === 3, "profile/level");
+      await waitFor(() => doc.getElementById("ui-gold").textContent === "5,000");
+      assert(doc.getElementById("ui-name").textContent === "มินนี่", "HUD name");
+
+      // เดินขวาด้วยคีย์บอร์ด
+      const startX = game.world.player.x;
+      frame.contentWindow.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD" }));
+      await sleep(600);
+      frame.contentWindow.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyD" }));
+      assert(game.world.player.x > startX + 30, `player moved ${startX} → ${game.world.player.x}`);
+
+      // เปิดแผงอุปกรณ์ = หยุดเวลา
+      doc.querySelector('[data-panel="equipment"]').click();
+      const pausedAt = game.world.time;
+      await sleep(300);
+      assert(game.world.time === pausedAt, "เปิดเมนูแล้วเวลาต้องหยุด");
+
+      game.state.inventory.materials.enhance_stone = 5;
+      game.renderPanel();
+      doc.querySelector('[data-action="upgrade"]').click();
+      const weapon = game.state.inventory.equipment.find((item) => item.uid === game.state.equipped.weapon);
+      assert(weapon.plus === 1 && game.state.player.gold === 4960, "upgrade +1");
+
+      doc.getElementById("panel-close").click();
+      await sleep(200);
+      assert(game.world.time > pausedAt, "ปิดเมนูแล้วเวลาเดินต่อ");
+
+      // ปิดหน้าเกม (pagehide เซฟ) แล้วเปิดใหม่
+      frame.remove();
+      await sleep(100);
+      const frame2 = document.createElement("iframe");
+      document.body.append(frame2);
+      doc = await openGame(frame2);
+      game = frame2.contentWindow.heroFarm;
+      await waitFor(() => game.world);
+
+      assert(doc.getElementById("create-screen").hidden, "ผู้เล่นเดิมไม่ต้องสร้างตัวละครซ้ำ");
+      const saved = game.state.inventory.equipment.find((item) => item.uid === game.state.equipped.weapon);
+      assert(saved.plus === 1 && game.state.player.gold === 4960, "เซฟตีบวกคงอยู่");
+      frame2.remove();
+    });
+
+    // คืนเซฟจริง
+    for (const [key, value] of Object.entries(realSaves)) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+
+    const failed = lines.filter((line) => line.startsWith("FAIL")).length;
+    const passed = lines.filter((line) => line.startsWith("PASS")).length;
+    document.getElementById("out").innerHTML =
+      lines.map((line) => `<span class="${line.slice(0, 4)}">${line.replace(/</g, "&lt;")}</span>`).join("\n") +
+      `\n\n${passed} passed, ${failed} failed\nDONE`;
+    document.title = failed ? "FAILED" : "PASSED";
+  </script>
+</body>
+</html>

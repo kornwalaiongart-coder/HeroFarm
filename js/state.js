@@ -1,26 +1,19 @@
 // =====================================================
 // js/state.js
-// "สมุดบันทึกกลาง" ของเกม — ข้อมูลทุกอย่างอยู่ที่นี่ที่เดียว
-// ทอง เพชร เลเวล พลังงาน ตัวละคร ทั้งหมดอ่าน/เขียนที่ไฟล์นี้
+// "สมุดบันทึกกลาง" ของเกม — ข้อมูลที่ต้องเซฟทั้งหมดอยู่ที่นี่ที่เดียว
 //
-// กฎสำคัญ: ห้ามมีตัวเลขทองซ่อนอยู่ในไฟล์อื่น
-// ตัวเลขที่เห็นบนหน้าจอเป็นแค่ "ภาพสะท้อน" ของ state เท่านั้น
+// กฎสำคัญ:
+// - ตัวเลขที่เห็นบนหน้าจอเป็นแค่ "ภาพสะท้อน" ของ state
+// - ข้อมูลที่คำนวณได้ (ค่าพลัง, ตำแหน่งมอนเตอร์) ไม่เก็บใน state
+//   ค่าพลังอยู่ที่ systems/stats.js ส่วนโลกในเกมอยู่ที่ game/world.js
 // =====================================================
 
-import { STARTER_ROSTER } from "../data/characters.js";
-
-// ---------- ค่าคงที่ของเกม (ปรับสมดุลได้ที่นี่) ----------
+// ---------- ค่าคงที่ของเกม ----------
 export const CONFIG = {
-  SAVE_VERSION: 2,             // เปลี่ยนโครงสร้างเซฟเมื่อไหร่ ต้องเพิ่มเลขนี้ + เขียน migration ใน save.js
-
-  ENERGY_MAX: 60,              // พลังงานสูงสุดตอนเริ่มเกม
-  ENERGY_REGEN_MS: 5 * 60_000, // ฟื้น 1 หน่วยทุก 5 นาที
-  ENERGY_PER_LEVEL: 5,         // เลเวลผู้เล่นขึ้น 1 → พลังงานสูงสุด +5
-
-  BATTLE_ENERGY_COST: 5,       // ต่อสู้ 1 ครั้งใช้พลังงานเท่าไหร่
-
+  SAVE_VERSION: 3,        // เปลี่ยนโครงสร้างเซฟเมื่อไหร่ ต้องเพิ่มเลขนี้ + เขียน migration ใน save.js
   START_GOLD: 1250,
-  START_GEM: 85
+  START_GEM: 85,
+  AUTOSAVE_MS: 10_000     // เซฟอัตโนมัติทุกกี่มิลลิวินาที (ถ้ามีอะไรเปลี่ยน)
 };
 
 // ---------- หน้าตาของเกมตอนเริ่มใหม่ ----------
@@ -28,19 +21,29 @@ export function createNewState() {
   return {
     version: CONFIG.SAVE_VERSION,
 
+    // null = ยังไม่ได้สร้างตัวละคร → เกมจะเปิดหน้าสร้างตัวละคร
+    // { name, gender: "male" | "female", createdAt }
+    profile: null,
+
     player: {
       level: 1,
       exp: 0,
       gold: CONFIG.START_GOLD,
-      gem: CONFIG.START_GEM,
-      energy: CONFIG.ENERGY_MAX,
-      maxEnergy: CONFIG.ENERGY_MAX,
-      // เวลาล่าสุดที่คำนวณพลังงาน ใช้คิดพลังงานที่ฟื้นตอนไม่ได้เปิดเกม
-      energyUpdatedAt: Date.now()
+      gem: CONFIG.START_GEM
     },
 
-    // เก็บแค่ข้อมูลที่เปลี่ยนระหว่างเล่น ชื่อ/รูป/ค่าพลังดึงจาก data/characters.js ตอนใช้งาน
-    characters: STARTER_ROSTER.map(({ id, level }) => ({ id, level, exp: 0 })),
+    inventory: {
+      materials: {},   // { itemId: จำนวน }
+      equipment: []    // [{ uid, itemId, plus }]
+    },
+
+    equipped: {
+      weapon: null,    // uid ของอุปกรณ์ที่สวม
+      armor: null
+    },
+
+    // เลขประจำตัวอุปกรณ์ชิ้นถัดไป (อุปกรณ์ชนิดเดียวกันหลายชิ้นต้องแยกกันได้)
+    nextUid: 1,
 
     lastSavedAt: null
   };
@@ -53,118 +56,34 @@ export function replaceState(newState) {
   state = newState;
 }
 
-
-// =====================================================
-// สูตรคำนวณ
-// =====================================================
-
-// EXP ที่ตัวละครต้องใช้เพื่อขึ้นเลเวลถัดไป (สูตรเดิมจาก game.js)
-export function getExpNeeded(level) {
-  return Math.floor(50 * Math.pow(level, 1.5));
-}
-
-// EXP ที่ผู้เล่นต้องใช้เพื่อขึ้นเลเวลถัดไป (ใช้เยอะกว่าตัวละคร)
+// EXP ที่ผู้เล่นต้องใช้เพื่อขึ้นเลเวลถัดไป
 export function getPlayerExpNeeded(level) {
   return Math.floor(100 * Math.pow(level, 1.5));
 }
 
-
 // =====================================================
 // ฟังก์ชันแก้ไข state — ทุกระบบต้องเรียกผ่านฟังก์ชันเหล่านี้
-// (ห้ามไปบวกลบตัวเลขตรงๆ จากไฟล์อื่น จะตามหาบั๊กยากมาก)
 // =====================================================
 
 export function addGold(amount) {
-  state.player.gold += amount;
-  if (state.player.gold < 0) state.player.gold = 0;
+  state.player.gold = Math.max(0, state.player.gold + amount);
 }
 
 export function addGem(amount) {
-  state.player.gem += amount;
-  if (state.player.gem < 0) state.player.gem = 0;
+  state.player.gem = Math.max(0, state.player.gem + amount);
 }
 
-// เช็คว่ามีพลังงานพอไหม
-export function hasEnergy(amount) {
-  return state.player.energy >= amount;
-}
-
-// ใช้พลังงาน — คืน true ถ้าใช้สำเร็จ, false ถ้าไม่พอ
-export function spendEnergy(amount) {
-  if (!hasEnergy(amount)) return false;
-
-  // ถ้าเดิมพลังงานเต็ม ให้เริ่มนับเวลาฟื้นจากตอนนี้ ไม่ใช่จากเวลาเก่าที่ค้างไว้
-  if (state.player.energy >= state.player.maxEnergy) {
-    state.player.energyUpdatedAt = Date.now();
-  }
-
-  state.player.energy -= amount;
-  return true;
-}
-
-// เพิ่ม EXP ให้ผู้เล่น และเลเวลอัพถ้าถึงเกณฑ์
 // คืนจำนวนเลเวลที่ขึ้น (0 = ไม่ขึ้น)
 export function addPlayerExp(amount) {
   const player = state.player;
   player.exp += amount;
 
   let levelsGained = 0;
-
   while (player.exp >= getPlayerExpNeeded(player.level)) {
     player.exp -= getPlayerExpNeeded(player.level);
     player.level += 1;
     levelsGained += 1;
-
-    // รางวัลเลเวลอัพ: พลังงานสูงสุดเพิ่ม และเติมพลังงานเต็ม
-    player.maxEnergy += CONFIG.ENERGY_PER_LEVEL;
-    player.energy = player.maxEnergy;
   }
 
   return levelsGained;
-}
-
-// =====================================================
-// ระบบพลังงานฟื้นตามเวลา
-// คิดจาก "เวลาที่ผ่านไปจริง" ไม่ใช่การนับถอยหลังในเกม
-// แปลว่าปิดเบราว์เซอร์ไป 1 ชั่วโมงแล้วกลับมา พลังงานก็ฟื้นให้
-// (นี่คือพื้นฐานเดียวกับที่ระบบฟาร์มออฟไลน์จะใช้ใน Phase 5)
-// =====================================================
-export function updateEnergyFromTime() {
-  const player = state.player;
-  const now = Date.now();
-
-  // ถ้าพลังงานเต็มอยู่แล้ว แค่ขยับเวลาให้เป็นปัจจุบัน
-  if (player.energy >= player.maxEnergy) {
-    player.energy = player.maxEnergy;
-    player.energyUpdatedAt = now;
-    return 0;
-  }
-
-  const elapsed = now - player.energyUpdatedAt;
-
-  // นาฬิกาเครื่องถูกย้อนหลัง → ตั้งเวลาใหม่ ไม่ให้พลังงานค้างไม่ฟื้นไปอีกนาน
-  if (elapsed < 0) {
-    player.energyUpdatedAt = now;
-    return 0;
-  }
-
-  const gained = Math.floor(elapsed / CONFIG.ENERGY_REGEN_MS);
-
-  if (gained <= 0) return 0;
-
-  player.energy = Math.min(player.maxEnergy, player.energy + gained);
-
-  // เก็บเศษเวลาที่ยังไม่ครบรอบไว้ ไม่ให้เวลาหายฟรี
-  player.energyUpdatedAt += gained * CONFIG.ENERGY_REGEN_MS;
-
-  return gained;
-}
-
-// เวลาที่เหลือก่อนได้พลังงานหน่วยถัดไป (มิลลิวินาที)
-export function getEnergyCountdownMs() {
-  const player = state.player;
-  if (player.energy >= player.maxEnergy) return 0;
-
-  const elapsed = Date.now() - player.energyUpdatedAt;
-  return Math.max(0, CONFIG.ENERGY_REGEN_MS - elapsed);
 }

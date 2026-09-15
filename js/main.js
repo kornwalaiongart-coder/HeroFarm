@@ -1,99 +1,126 @@
 // =====================================================
 // js/main.js
 // จุดเริ่มต้นของเกม — ไฟล์เดียวที่ index.html เรียก
-// หน้าที่: สั่งให้แต่ละระบบเริ่มทำงานตามลำดับที่ถูกต้อง
 //
-// ลำดับสำคัญมาก: ต้องโหลดเซฟก่อน แล้วค่อยวาดหน้าจอ
-// ไม่งั้นจะวาดข้อมูลเกมใหม่ทับข้อมูลเก่าของผู้เล่น
+// ลำดับ: โหลดเซฟ → (ยังไม่มีตัวละคร? เปิดหน้าสร้าง) → สร้างโลก → วนลูปเกม
+// ลูปเกมทุกเฟรม: อ่านการควบคุม → อัปเดตโลก → จัดการ events → วาด
 // =====================================================
 
-import { updateEnergyFromTime } from "./state.js";
-import { loadGame, saveGame, resetGame, getSaveStatusText } from "./save.js";
-import { renderTopBar, showToast } from "./ui.js";
-import { initRouter, showScreen } from "./router.js";
-import { setBattleHandler } from "./systems/characters.js";
-import { initBattle, startBattle } from "./systems/battle.js";
+import { state, CONFIG } from "./state.js";
+import { loadGame, saveGame, saveIfDirty, markDirty } from "./save.js";
+import { START_MAP_ID } from "../data/maps.js";
+import { ITEMS } from "../data/items.js";
+import { MONSTERS } from "../data/monsters.js";
+import { createWorld, updateWorld } from "./game/world.js";
+import { createRenderer } from "./game/render.js";
+import { initInput, readInput, clearInput } from "./game/input.js";
+import { renderHud, showToast } from "./ui/hud.js";
+import { initPanels, isPanelOpen, renderPanel } from "./ui/panels.js";
+import { showCreateScreen } from "./ui/create.js";
 
-function startGame() {
-  // 1) โหลดเซฟเดิม (ถ้ามี)
+const $ = (id) => document.getElementById(id);
+
+let world = null;
+let renderer = null;
+let lastFrameTime = null;
+
+function start() {
   const hasSave = loadGame();
 
-  // 2) คำนวณพลังงานที่ฟื้นระหว่างที่ปิดเกมไป
-  const energyGained = updateEnergyFromTime();
+  renderer = createRenderer($("world-canvas"));
+  window.addEventListener("resize", () => renderer.resize());
 
-  // 3) ผูกปุ่มทั้งหมด
-  initRouter();
-  initBattle();
-  setBattleHandler(startBattle);
-  initSettingsButtons();
-
-  // 4) วาดหน้าจอครั้งแรก
-  renderTopBar();
-
-  // 5) บันทึกทันที เพื่อให้ผู้เล่นใหม่มีไฟล์เซฟตั้งแต่วินาทีแรก
-  saveGame();
-
-  // 6) ทักทาย
-  if (!hasSave) {
-    showToast("ยินดีต้อนรับสู่ Hero Farm");
-  } else if (energyGained > 0) {
-    showToast("พลังงานฟื้นมา +" + energyGained + " ระหว่างที่คุณไม่อยู่");
-  }
-}
-
-// ---------- ปุ่มในหน้าตั้งค่า ----------
-function initSettingsButtons() {
-  const statusText = document.getElementById("ui-save-status");
-
-  document.getElementById("save-now-btn").addEventListener("click", () => {
-    const ok = saveGame();
-    statusText.textContent = ok ? getSaveStatusText() : "บันทึกไม่สำเร็จ";
-    showToast(ok ? "บันทึกแล้ว" : "บันทึกไม่สำเร็จ");
+  initInput({
+    joystickEl: $("joystick"),
+    knobEl: $("joystick-knob"),
+    attackButton: $("attack-btn")
   });
 
-  document.getElementById("reset-game-btn").addEventListener("click", () => {
-    const confirmed = confirm(
-      "ลบข้อมูลทั้งหมดและเริ่มเกมใหม่?\nทอง เพชร เลเวล และตัวละครจะกลับไปเป็นค่าเริ่มต้น"
-    );
-    if (!confirmed) return;
-
-    resetGame();
-    renderTopBar();
-    statusText.textContent = getSaveStatusText();
-    showScreen("home-screen");
-    showToast("เริ่มเกมใหม่แล้ว");
+  initPanels({
+    onOpen: clearInput,
+    onReset: () => beginGame(false)
   });
 
-  // อัปเดตข้อความสถานะทุกครั้งที่เปิดหน้าตั้งค่า
-  document.querySelectorAll('[data-screen="settings-screen"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      statusText.textContent = getSaveStatusText();
-    });
-  });
-}
+  beginGame(hasSave);
+  requestAnimationFrame(loop);
 
-// ---------- นาฬิกาเดินทุกวินาที ----------
-// ใช้ฟื้นพลังงานและอัปเดตเวลานับถอยหลังบนหน้าหลัก
-function startGameClock() {
-  setInterval(() => {
-    const gained = updateEnergyFromTime();
-    renderTopBar();
-    if (gained > 0) saveGame();
-  }, 1000);
-}
-
-// ---------- บันทึกอัตโนมัติทุก 30 วินาที ----------
-function startAutoSave() {
-  setInterval(saveGame, 30_000);
-
-  // บันทึกอีกครั้งตอนสลับแอป/ปิดแท็บ กันข้อมูลหายนาทีสุดท้าย
-  // มือถือแทบไม่ยิง beforeunload จึงใช้ visibilitychange + pagehide แทน
+  // เซฟรวบทุกรอบ (ถ้ามีอะไรเปลี่ยน) + ตอนสลับแอป/ปิดแท็บ
+  setInterval(saveIfDirty, CONFIG.AUTOSAVE_MS);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") saveGame();
   });
   window.addEventListener("pagehide", saveGame);
 }
 
-startGame();
-startGameClock();
-startAutoSave();
+function beginGame(hasSave) {
+  world = null;
+
+  if (!state.profile) {
+    showCreateScreen(() => {
+      saveGame();
+      enterWorld();
+      showToast("ยินดีต้อนรับ " + state.profile.name + "! เดินไปทางขวาเพื่อตีสไลม์");
+    });
+    return;
+  }
+
+  enterWorld();
+  if (hasSave) showToast("ยินดีต้อนรับกลับมา " + state.profile.name);
+}
+
+function enterWorld() {
+  world = createWorld(START_MAP_ID);
+  renderer.resize();
+}
+
+function loop(now) {
+  const dt = lastFrameTime === null ? 0 : (now - lastFrameTime) / 1000;
+  lastFrameTime = now;
+
+  if (world) {
+    // เปิดเมนูอยู่ = หยุดเวลา แต่ยังวาดฉากไว้ด้านหลัง
+    if (!isPanelOpen()) {
+      handleEvents(updateWorld(world, readInput(), dt));
+    }
+    renderer.draw(world, state.profile);
+    renderHud(world);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function handleEvents(events) {
+  for (const event of events) {
+    switch (event.type) {
+      case "kill":
+        markDirty();
+        break;
+
+      case "pickup":
+        markDirty();
+        // ของหายากแจ้งเตือนเด่นๆ วัตถุดิบธรรมดาดูแค่ตัวหนังสือลอยพอ
+        if (event.kind === "item" && ITEMS[event.itemId].type === "equipment") {
+          showToast("🎉 ได้รับ " + ITEMS[event.itemId].icon + " " + ITEMS[event.itemId].name);
+        }
+        break;
+
+      case "levelUp":
+        showToast("🌟 เลเวลอัพ! ตอนนี้ Lv." + state.player.level);
+        saveGame();
+        break;
+
+      case "playerDied":
+        showToast("💀 แพ้ " + MONSTERS[event.killedBy].name + " — กลับไปพักที่จุดเกิด");
+        break;
+    }
+  }
+}
+
+// ให้หน้าทดสอบ (tests/) และ DevTools ส่องสถานะเกมได้ — ไม่มีผลกับการเล่น
+window.heroFarm = {
+  get world() { return world; },
+  get state() { return state; },
+  renderPanel
+};
+
+start();
